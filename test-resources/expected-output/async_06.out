@@ -1,0 +1,6 @@
+test-resources/src/async/test06.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test06.js:11:21: [definite] The variable res is never used
+test-resources/src/async/test06.js:14:27: [definite] Unreachable code
+test-resources/src/async/test06.js:17:23: [definite] Unreachable code
+test-resources/src/async/test06.js:20:12: [definite] Unreachable code
+test-resources/src/async/test06.js:20:20: [definite] Unreachable function

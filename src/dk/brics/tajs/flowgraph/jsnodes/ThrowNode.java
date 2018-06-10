@@ -65,4 +65,9 @@ public class ThrowNode extends Node {
     public boolean canThrowExceptions() {
         return true;
     }
+
+    @Override
+    public boolean isEventLoop() {
+        return false;
+    }
 }

@@ -1,0 +1,16 @@
+test-resources/src/async/test19.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test19.js:3:5: [definite] The variable y is never used
+test-resources/src/async/test19.js:6:7: [info] Abstract value: "executed"
+test-resources/src/async/test19.js:36:5: [info] Abstract value: IdentStr
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"JSON.parse[@0]" -> "bar-14[]";
+"bar-14[]" -> "baz-26[]";
+"baz-26[]" -> "ff1-5[]";
+"baz-26[]" -> "ff2-21[]";
+"baz-26[]" -> "ff3-35[]";
+"ff1-5[]";
+"ff2-21[]";
+"ff3-35[]";
+}

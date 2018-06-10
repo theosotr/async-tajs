@@ -1,0 +1,16 @@
+test-resources/src/async/test00.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test00.js:2:5: [info] Abstract value: [@resolve[internal]]
+test-resources/src/async/test00.js:3:5: [info] Abstract value: [@reject[internal]]
+test-resources/src/async/test00.js:6:1: [info] Abstract value: [@Promise#node8]
+test-resources/src/async/test00.js:7:1: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test00.js:7:1: [info] Queue object: @Promise#node8 ==>
+State:	[PENDING - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test00.js:7:1: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]

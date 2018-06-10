@@ -250,6 +250,11 @@ public class BinaryOperatorNode extends LoadNode {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (arg1_reg == NO_VALUE)
             throw new AnalysisException("Invalid left argument: " + toString());

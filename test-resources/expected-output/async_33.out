@@ -1,0 +1,17 @@
+test-resources/src/async/test33.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test33.js:19:5: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test33.js:23:5: [info] Abstract value: "baz"
+test-resources/src/async/test33.js:25:5: [info] Abstract value: "catch executed"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar1-18[Q=[@Promise#node14], R=[@Promise#node28]]" -> "bar3-24[Q=[@Promise#node28], R=[@Promise#node32]]";
+"bar1-18[Q=[@Promise#node14], R=[@Promise#node28]]" -> "foo2-13[Q=[@Promise#node20], R=[@Promise#node23]]";
+"bar2-22[Q=[@Promise#node28], R=[@Promise#node32]]";
+"bar3-24[Q=[@Promise#node28], R=[@Promise#node32]]";
+"foo1-9[Q=[@Promise#node10], R=[@Promise#node20]]" -> "bar3-24[Q=[@Promise#node28], R=[@Promise#node32]]";
+"foo1-9[Q=[@Promise#node10], R=[@Promise#node20]]" -> "foo2-13[Q=[@Promise#node20], R=[@Promise#node23]]";
+"foo2-13[Q=[@Promise#node20], R=[@Promise#node23]]" -> "bar2-22[Q=[@Promise#node28], R=[@Promise#node32]]";
+"resolve[#0]" -> "bar1-18[Q=[@Promise#node14], R=[@Promise#node28]]";
+"resolve[#0]" -> "foo1-9[Q=[@Promise#node10], R=[@Promise#node20]]";
+}

@@ -1,0 +1,18 @@
+test-resources/src/async/test08.js:32:27: [definite] Variable value is null/undefined
+test-resources/src/async/test08.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test08.js:6:5: [definite] The variable y is never used
+test-resources/src/async/test08.js:16:11: [definite] Unreachable function ff3
+test-resources/src/async/test08.js:19:12: [definite] The variable reason is never used
+test-resources/src/async/test08.js:25:8: [definite] Unreachable function ff6
+test-resources/src/async/test08.js:20:9: [info] Abstract value: "printed"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-8[]" -> "ff2-12[]";
+"ff2-12[]" -> "on_reject[@3]";
+"ff4-19[]" -> "ff5-23[]";
+"ff5-23[]" -> "ff7-29[]";
+"ff7-29[]";
+"on_fulfill[@0]" -> "ff1-8[]";
+"on_reject[@3]" -> "ff4-19[]";
+}

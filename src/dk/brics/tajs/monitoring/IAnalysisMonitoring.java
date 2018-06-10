@@ -16,6 +16,7 @@
 
 package dk.brics.tajs.monitoring;
 
+import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.Function;
@@ -46,6 +47,14 @@ import java.util.Set;
  * In particular, <tt>UnknownValueResolver.getRealValue(v, state)</tt> should not be used before the scan phase.
  */
 public interface IAnalysisMonitoring extends ILatticeMonitoring {
+
+    /**
+     * Adds a message for the given node with the specified status.
+     * If not in scan phase, nothing is done.
+     * The key must be a fixed string.
+     */
+    void addMessage(AbstractNode n, Message.Status status, Severity severity,
+                    String msg);
 
     /**
      * Adds a message for the given node. If not in scan phase, nothing is done.
@@ -269,4 +278,23 @@ public interface IAnalysisMonitoring extends ILatticeMonitoring {
      * Invoked when an event handler is registered.
      */
     void visitEventHandlerRegistration(AbstractNode node, Context context, Value handler);
+
+    /**
+     * This method reports an error if there is a use of built-in Promise
+     * constructor without new keyword.
+     */
+    void visitPromiseCall(AbstractNode node, FunctionCalls.CallInfo call);
+
+    /**
+     * This method checks that executor variable is valid
+     * when a new Promise is created.
+     */
+    void visitPromiseExecutor(AbstractNode node, Value executor);
+
+    /**
+     * This method reports an error if a promise is resolved with its
+     * value (i.e. self resolution error).
+     */
+    void visitPromiseResolve(AbstractNode node, ObjectLabel promise,
+                             Value resolvedValue);
 }

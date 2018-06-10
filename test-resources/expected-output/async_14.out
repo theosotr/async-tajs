@@ -1,0 +1,14 @@
+test-resources/src/async/test14.js:9:13: [definite] TypeError, accessing property of null/undefined
+test-resources/src/async/test14.js:8:13: [definite] Reading absent property bar
+test-resources/src/async/test14.js:9:13: [definite] Reading absent property bar
+test-resources/src/async/test14.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test14.js:10:28: [definite] Unreachable code
+test-resources/src/async/test14.js:8:13: [maybe] Converting primitive number to object
+test-resources/src/async/test14.js:9:13: [maybe] Converting primitive number to object
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-3[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "ff2-5[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"ff2-5[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "ff3-7[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"ff3-7[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+}

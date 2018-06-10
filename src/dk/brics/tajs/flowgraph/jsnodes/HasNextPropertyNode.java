@@ -50,6 +50,11 @@ public class HasNextPropertyNode extends LoadNode {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public String toString() {
         return "has-next[v" + propertylist_reg + ",v" + getResultRegister() + "]";
     }

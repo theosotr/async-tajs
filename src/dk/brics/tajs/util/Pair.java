@@ -27,7 +27,7 @@ public class Pair<F, S> implements Serializable {
 
     private S second;
 
-    private Pair(F fst, S snd) {
+    public Pair(F fst, S snd) {
         this.first = fst;
         this.second = snd;
     }

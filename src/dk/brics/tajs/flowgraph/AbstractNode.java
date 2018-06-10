@@ -176,6 +176,11 @@ public abstract class AbstractNode implements Cloneable, Serializable {
     public abstract void visitBy(AbstractNodeVisitor v);
 
     /**
+     * True if this node is the event loop; False otherwise.
+     */
+    public abstract boolean isEventLoop();
+
+    /**
      * Perform a consistency check of this node.
      * Default implementation does nothing.
      *

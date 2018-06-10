@@ -71,6 +71,8 @@ public class ECMAScriptFunctions {
             case OBJECT_PREVENTEXTENSIONS:
             case OBJECT_SEAL:
             case OBJECT_VALUES:
+            case OBJECT_ISSEALED:
+            case OBJECT_ISEXTENSIBLE:
                 res = JSObject.evaluate(nativeobject, call, c);
                 break;
 
@@ -275,6 +277,21 @@ public class ECMAScriptFunctions {
                 res = JSMath.evaluate(nativeobject, call, c);
                 break;
 
+            case PROMISE:
+            case PROMISE_ALL:
+            case PROMISE_RACE:
+            case PROMISE_RESOLVE:
+            case PROMISE_REJECT:
+            case PROMISE_THEN:
+            case PROMISE_CATCH:
+            case PROMISE_FINALLY:
+                res = JSPromise.evaluate(nativeobject, call, c);
+                break;
+
+            case SET_TIMEOUT:
+                res = JSTimers.evaluate(nativeobject, call, c);
+                break;
+
             case EVAL:
             case PARSEINT:
             case PARSEFLOAT:
@@ -305,6 +322,7 @@ public class ECMAScriptFunctions {
             case MATH:
             case NUMBER_PROTOTYPE:
             case OBJECT_PROTOTYPE:
+            case PROMISE_PROTOTYPE:
             case RANGE_ERROR_PROTOTYPE:
             case REFERENCE_ERROR_PROTOTYPE:
             case REGEXP_PROTOTYPE:

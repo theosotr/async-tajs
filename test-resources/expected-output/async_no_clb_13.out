@@ -1,0 +1,9 @@
+test-resources/src/async/test18.js:15:23: [definite] Variable value is null/undefined
+test-resources/src/async/test18.js: [definite] Exceptional program exit is unreachable
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-14[Q=[@Promise#node16], R=[@Promise#node19]]";
+"baz-8[Q=[@Promise#node38], R=[@Promise#node44]]" -> "bar-14[Q=[@Promise#node16], R=[@Promise#node19]]";
+"foo-3[Q=[@Promise#node10], R=[@Promise#node16]]" -> "baz-8[Q=[@Promise#node38], R=[@Promise#node44]]";
+}

@@ -1,0 +1,22 @@
+test-resources/src/async/test34.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test34.js:9:9: [info] Abstract value: PrefixStr[res: ]
+test-resources/src/async/test34.js:14:9: [info] Abstract value: PrefixStr[res: ]
+test-resources/src/async/test34.js:19:9: [info] Abstract value: PrefixStr[res: ]
+test-resources/src/async/test34.js:34:9: [info] Abstract value: "should be printed"
+test-resources/src/async/test34.js:44:9: [info] Abstract value: "should be printed"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-23[]" -> "fb1-33[]";
+"bar-23[]" -> "fb4-43[]";
+"bar-23[]" -> "ff2-13[]";
+"fb1-33[]" -> "fb3-41[]";
+"fb2-36[]" -> "fb4-43[]";
+"fb2-36[]" -> "ff2-13[]";
+"fb3-41[]" -> "ff3-18[]";
+"fb4-43[]" -> "ff3-18[]";
+"ff1-8[]" -> "fb2-36[]";
+"ff2-13[]" -> "fb3-41[]";
+"ff3-18[]";
+"foo-1[]" -> "ff3-18[]";
+}

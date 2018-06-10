@@ -94,6 +94,11 @@ public class BeginForInNode extends Node {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (b.getSuccessors().size() > 1)
             throw new AnalysisException("More than one successor for begin-for-in node block: " + b);

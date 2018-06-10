@@ -1,0 +1,14 @@
+test-resources/src/async/test25.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test25.js:18:6: [info] Abstract value: IdentStr
+test-resources/src/async/test25.js:23:7: [info] Abstract value: OtherStr
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-8[]" -> "fn-22[]";
+"baz-17[]" -> "bar-8[]";
+"fn-22[]";
+"foo-1[]" -> "lala-31[]";
+"la-42[]" -> "bar-8[]";
+"lala-31[]" -> "baz-17[]";
+"lala-31[]" -> "la-42[]";
+}

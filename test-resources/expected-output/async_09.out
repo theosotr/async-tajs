@@ -1,0 +1,26 @@
+test-resources/src/async/test09.js:10:9: [definite] TypeError, accessing property of null/undefined
+test-resources/src/async/test09.js:10:9: [definite] Variable z is null/undefined
+test-resources/src/async/test09.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test09.js:1:21: [definite] The variable res is never used
+test-resources/src/async/test09.js:6:5: [definite] The variable y is never used
+test-resources/src/async/test09.js:11:24: [definite] Unreachable code
+test-resources/src/async/test09.js:14:11: [definite] Unreachable function ff2
+test-resources/src/async/test09.js:21:24: [definite] Unreachable code
+test-resources/src/async/test09.js:24:11: [definite] Unreachable function ff4
+test-resources/src/async/test09.js:18:9: [info] Abstract value: [@Error#node72]
+test-resources/src/async/test09.js:19:9: [info] Abstract value: "printed here"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-7[Q=[@Promise#node9], R=[@Promise#node15]]" -> "on_reject[@1]";
+"ff3-17[Q=[@Promise#node20], R=[@Promise#node23]]" -> "on_reject[@4]";
+"ff5-27[Q=[@Promise#node25], R=[@Promise#node29]]" -> "on_fulfill[@6]";
+"ff6-33[Q=[@Promise#node35], R=[@Promise#node38]]" -> "on_fulfill[@9]";
+"ff7-38[Q=[@Promise#node42], R=[@Promise#node45]]";
+"on_fulfill[@6]" -> "on_fulfill[@7]";
+"on_fulfill[@7]" -> "ff6-33[Q=[@Promise#node35], R=[@Promise#node38]]";
+"on_fulfill[@9]" -> "ff7-38[Q=[@Promise#node42], R=[@Promise#node45]]";
+"on_reject[@1]" -> "on_reject[@2]";
+"on_reject[@2]" -> "ff3-17[Q=[@Promise#node20], R=[@Promise#node23]]";
+"on_reject[@4]" -> "ff5-27[Q=[@Promise#node25], R=[@Promise#node29]]";
+}

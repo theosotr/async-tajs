@@ -1,0 +1,21 @@
+test-resources/src/async/test31.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test31.js:9:9: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test31.js:15:21: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test31.js:20:13: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test31.js:10:9: [info] Abstract value: "executed"
+test-resources/src/async/test31.js:22:13: [info] Abstract value: "catch executed"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-6[Q=[@Promise#node9], R=[@Promise#node15]]" -> "ff6-26[Q=[@Promise#node15], R=[@Promise#node18]]";
+"ff2-8[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "ff3-13[Q=[@Promise#node60], R=[@Promise#node70]]";
+"ff3-13[Q=[@Promise#node60], R=[@Promise#node70]]" -> "ff4-18[Q=[@Promise#node70], R=[@Promise#node73]]";
+"ff3-13[Q=[@Promise#node60], R=[@Promise#node70]]" -> "on_reject[@4]";
+"ff4-18[Q=[@Promise#node70], R=[@Promise#node73]]" -> "ff5-21[Q=[@Promise#node73], R=[@Promise#node76]]";
+"ff4-18[Q=[@Promise#node70], R=[@Promise#node73]]" -> "on_fulfill[@4]";
+"ff5-21[Q=[@Promise#node73], R=[@Promise#node76]]";
+"ff6-26[Q=[@Promise#node15], R=[@Promise#node18]]" -> "ff2-8[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"on_fulfill[@4]";
+"on_reject[@4]";
+"resolve[#0]" -> "ff1-6[Q=[@Promise#node9], R=[@Promise#node15]]";
+}

@@ -1,0 +1,35 @@
+test-resources/src/async/test12.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test12.js:30:5: [definite] The variable p3 is never used
+test-resources/src/async/test12.js:31:1: [info] Abstract value: [*Promise#node92]
+test-resources/src/async/test12.js:32:1: [info] Queue object: *Promise#node104 ==>
+State:	[REJECTED - "rejected"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test12.js:32:1: [info] Queue object: *Promise#node92 ==>
+State:	[PENDING - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test12.js:32:1: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test12.js:32:1: [info] Queue object: @Promise#node104 ==>
+State:	[REJECTED - "rejected"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test12.js:32:1: [info] Queue object: @Promise#node86 ==>
+State:	[FULFILLED - 1.0]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test12.js:32:1: [info] Queue object: @Promise#node92 ==>
+State:	[FULFILLED - "resolved"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test12.js:32:1: [info] Queue object: @Promise#node92 ==>
+State:	[PENDING - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test12.js:32:1: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]

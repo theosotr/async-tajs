@@ -16,6 +16,7 @@
 
 package dk.brics.tajs.monitoring;
 
+import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
@@ -88,6 +89,11 @@ public class TogglableMonitor implements IAnalysisMonitoring {
     @Override
     public void visitRecoveryGraph(AbstractNode node, int size) {
         active.visitRecoveryGraph(node, size);
+    }
+
+    @Override
+    public void addMessage(AbstractNode n, Message.Status status, Message.Severity severity, String msg) {
+        active.addMessage(n, status, severity, msg);
     }
 
     @Override
@@ -263,6 +269,21 @@ public class TogglableMonitor implements IAnalysisMonitoring {
     @Override
     public void visitEventHandlerRegistration(AbstractNode node, Context context, Value handler) {
         active.visitEventHandlerRegistration(node, context, handler);
+    }
+
+    @Override
+    public void visitPromiseCall(AbstractNode node, FunctionCalls.CallInfo call) {
+        active.visitPromiseCall(node, call);
+    }
+
+    @Override
+    public void visitPromiseExecutor(AbstractNode node, Value executor) {
+        active.visitPromiseExecutor(node, executor);
+    }
+
+    @Override
+    public void visitPromiseResolve(AbstractNode node, ObjectLabel promise, Value resolvedValue) {
+        active.visitPromiseResolve(node, promise, resolvedValue);
     }
 
     @Override

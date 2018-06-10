@@ -1,0 +1,14 @@
+test-resources/src/async/test35.js:7:9: [definite] The conditional expression is always false
+test-resources/src/async/test35.js:19:10: [definite] Dead assignment, property foo is never read
+test-resources/src/async/test35.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test35.js:2:5: [definite] The variable z is never used
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-6[Q=[@Promise#node20], R=[*Promise#node75]]" -> "baz-14[Q=[@Promise#node14], R=[@Promise#node27]]";
+"bar-6[Q=[@Promise#node39], R=[*Promise#node75]]" -> "quux-22[Q=[@Promise#node45], R=[@Promise#node48]]";
+"bar-6[Q=[@Promise#node53], R=[@Promise#node75]]";
+"baz-14[Q=[@Promise#node14], R=[@Promise#node27]]" -> "qux-17[Q=[@Promise#node31], R=[@Promise#node34]]";
+"quux-22[Q=[@Promise#node45], R=[@Promise#node48]]" -> "bar-6[Q=[@Promise#node53], R=[@Promise#node75]]";
+"qux-17[Q=[@Promise#node31], R=[@Promise#node34]]" -> "bar-6[Q=[@Promise#node39], R=[*Promise#node75]]";
+}

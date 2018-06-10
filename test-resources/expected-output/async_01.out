@@ -1,0 +1,40 @@
+test-resources/src/async/test01.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test01.js:9:1: [info] Abstract value: [@Promise#node10]
+test-resources/src/async/test01.js:10:1: [info] Abstract value: [@resolve[internal]]
+test-resources/src/async/test01.js:11:1: [info] Abstract value: [@reject[internal]]
+test-resources/src/async/test01.js:13:1: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test01.js:13:1: [info] Queue object: @Promise#node10 ==>
+State:	[PENDING - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test01.js:13:1: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test01.js:16:1: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test01.js:16:1: [info] Queue object: @Promise#node10 ==>
+State:	[FULFILLED - "foo"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test01.js:16:1: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test01.js:20:1: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test01.js:20:1: [info] Queue object: @Promise#node10 ==>
+State:	[FULFILLED - "foo"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test01.js:20:1: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]

@@ -1,0 +1,22 @@
+test-resources/src/async/test15.js:15:13: [definite] TypeError, accessing property of null/undefined
+test-resources/src/async/test15.js:13:13: [definite] Reading absent property bar
+test-resources/src/async/test15.js:15:13: [definite] Reading absent property bar
+test-resources/src/async/test15.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test15.js:16:28: [definite] Unreachable code
+test-resources/src/async/test15.js:10:9: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test15.js:13:13: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test15.js:15:13: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test15.js:19:15: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test15.js:13:13: [maybe] Converting primitive number to object
+test-resources/src/async/test15.js:15:13: [maybe] Converting primitive number to object
+test-resources/src/async/test15.js:11:9: [info] Abstract value: "should be printed"
+test-resources/src/async/test15.js:14:13: [info] Abstract value: "should be printed"
+test-resources/src/async/test15.js:20:5: [info] Abstract value: "should be printed"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"anonymous-12[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"anonymous-3[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "anonymous-9[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"anonymous-7[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "anonymous-9[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"anonymous-9[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "anonymous-12[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+}

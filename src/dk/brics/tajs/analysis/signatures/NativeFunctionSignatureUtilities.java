@@ -416,6 +416,18 @@ public class NativeFunctionSignatureUtilities {
             }
         };
 
+        public static Requirement isPromise = new Requirement() {
+            @Override
+            public boolean maybeSatisfied(Value v) {
+                return v.isMaybePromise();
+            }
+
+            @Override
+            public boolean maybeNotSatisfied(Value v) {
+                return v.isMaybeNonPromise();
+            }
+        };
+
         public static Requirement isFunction = new Requirement() {
             @Override
             public boolean maybeSatisfied(Value v) {
@@ -475,6 +487,8 @@ public class NativeFunctionSignatureUtilities {
         public static final ValueDescription Number = new ValueDescriptionImpl(java.util.Optional.of(Requirements.isNumber), java.util.Optional.empty());
 
         public static final ValueDescription Function = new ValueDescriptionImpl(java.util.Optional.of(Requirements.isFunction), java.util.Optional.empty());
+
+        public static final ValueDescription Promise = new ValueDescriptionImpl(java.util.Optional.of(Requirements.isPromise), java.util.Optional.empty());
 
         public static final ValueDescription Date = new ValueDescriptionImpl(java.util.Optional.of(Requirements.isDate), java.util.Optional.empty());
 

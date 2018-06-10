@@ -22,6 +22,7 @@ import dk.brics.tajs.flowgraph.Function;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.solver.BlockAndContext;
 import dk.brics.tajs.solver.CallGraph;
+import dk.brics.tajs.solver.CallbackGraph;
 import dk.brics.tajs.solver.IAnalysisLatticeElement;
 import dk.brics.tajs.util.AnalysisException;
 import org.apache.log4j.Logger;
@@ -50,6 +51,8 @@ public class AnalysisLatticeElement implements
      */
     private final CallGraph<State, Context, CallEdge> call_graph;
 
+    private final CallbackGraph callbackGraph;
+
     /**
      * Total number of states in block_entry_states.
      */
@@ -67,11 +70,17 @@ public class AnalysisLatticeElement implements
             }
         }
         call_graph = new CallGraph<>();
+        this.callbackGraph = new CallbackGraph();
     }
 
     @Override
     public CallGraph<State, Context, CallEdge> getCallGraph() {
         return call_graph;
+    }
+
+    @Override
+    public CallbackGraph getCallbackGraph() {
+        return this.callbackGraph;
     }
 
     @Override

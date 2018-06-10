@@ -1,0 +1,25 @@
+test-resources/src/async/test24.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test24.js:33:9: [definite] Unreachable function fb1
+test-resources/src/async/test24.js:43:6: [definite] Unreachable function fb4
+test-resources/src/async/test24.js:9:7: [info] Abstract value: "res: 1"
+test-resources/src/async/test24.js:14:7: [info] Abstract value: "res: 2"
+test-resources/src/async/test24.js:19:6: [info] Abstract value: "res: 3"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-23[Q=[@Promise#node39], R=[@Promise#node45]]" -> "fb2-36[Q=[@Promise#node45], R=[@Promise#node49]]";
+"bar-23[Q=[@Promise#node39], R=[@Promise#node45]]" -> "ff1-8[Q=[@Promise#node19], R=[@Promise#node22]]";
+"bar-23[Q=[@Promise#node49], R=[@Promise#node52]]" -> "fb3-41[Q=[@Promise#node52], R=[@Promise#node56]]";
+"bar-23[Q=[@Promise#node49], R=[@Promise#node52]]" -> "ff2-13[Q=[@Promise#node25], R=[@Promise#node28]]";
+"fb2-36[Q=[@Promise#node45], R=[@Promise#node49]]" -> "bar-23[Q=[@Promise#node49], R=[@Promise#node52]]";
+"fb2-36[Q=[@Promise#node45], R=[@Promise#node49]]" -> "foo-1[Q=[@Promise#node22], R=[@Promise#node25]]";
+"fb3-41[Q=[@Promise#node52], R=[@Promise#node56]]" -> "foo-1[Q=[@Promise#node28], R=[@Promise#node31]]";
+"ff1-8[Q=[@Promise#node19], R=[@Promise#node22]]" -> "bar-23[Q=[@Promise#node49], R=[@Promise#node52]]";
+"ff1-8[Q=[@Promise#node19], R=[@Promise#node22]]" -> "foo-1[Q=[@Promise#node22], R=[@Promise#node25]]";
+"ff2-13[Q=[@Promise#node25], R=[@Promise#node28]]" -> "foo-1[Q=[@Promise#node28], R=[@Promise#node31]]";
+"ff3-18[Q=[@Promise#node31], R=[@Promise#node34]]";
+"foo-1[Q=[@Promise#node13], R=[@Promise#node19]]" -> "bar-23[Q=[@Promise#node39], R=[@Promise#node45]]";
+"foo-1[Q=[@Promise#node22], R=[@Promise#node25]]" -> "fb3-41[Q=[@Promise#node52], R=[@Promise#node56]]";
+"foo-1[Q=[@Promise#node22], R=[@Promise#node25]]" -> "ff2-13[Q=[@Promise#node25], R=[@Promise#node28]]";
+"foo-1[Q=[@Promise#node28], R=[@Promise#node31]]" -> "ff3-18[Q=[@Promise#node31], R=[@Promise#node34]]";
+}

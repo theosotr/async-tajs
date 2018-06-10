@@ -87,6 +87,11 @@ public class DeclareFunctionNode extends LoadNode {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (f == null)
             throw new AnalysisException("Declare function node with null function: " + toString());

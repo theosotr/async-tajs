@@ -1,0 +1,18 @@
+test-resources/src/async/test02.js:2:9: [definite] Calling built-in Promise without new keyword
+test-resources/src/async/test02.js:10:9: [definite] Too few parameters to function Promise
+test-resources/src/async/test02.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test02.js:2:5: [definite] Unreachable code
+test-resources/src/async/test02.js:2:17: [definite] Unreachable function
+test-resources/src/async/test02.js:10:5: [definite] Unreachable code
+test-resources/src/async/test02.js:17:5: [definite] Unreachable code
+test-resources/src/async/test02.js:6:5: [info] Abstract value: "error 1"
+test-resources/src/async/test02.js:13:5: [info] Abstract value: "error 2"
+test-resources/src/async/test02.js:20:5: [info] Abstract value: "error promise argument is not a function"
+test-resources/src/async/test02.js:24:1: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test02.js:24:1: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]

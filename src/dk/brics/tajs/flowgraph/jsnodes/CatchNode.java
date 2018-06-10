@@ -104,6 +104,11 @@ public class CatchNode extends Node {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (varname == null && value_reg == NO_VALUE)
             throw new AnalysisException("Both varname and value register are undefined: " + toString());

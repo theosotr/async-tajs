@@ -18,16 +18,23 @@ package dk.brics.tajs.analysis;
 
 import dk.brics.tajs.analysis.dom.DOMObjects;
 import dk.brics.tajs.analysis.js.UserFunctionCalls;
+import dk.brics.tajs.analysis.nativeobjects.DefaultReactionFunction;
 import dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects;
+import dk.brics.tajs.analysis.nativeobjects.ResolvingFunction;
 import dk.brics.tajs.flowgraph.AbstractNode;
+import dk.brics.tajs.flowgraph.Function;
 import dk.brics.tajs.flowgraph.jsnodes.CallNode;
+import dk.brics.tajs.lattice.Context;
 import dk.brics.tajs.lattice.ExecutionContext;
+import dk.brics.tajs.lattice.HostObject;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
+import dk.brics.tajs.lattice.QueueContext;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.UnknownValueResolver;
 import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.options.Options;
+import dk.brics.tajs.solver.CallbackGraph;
 import dk.brics.tajs.util.AnalysisException;
 
 import java.util.List;
@@ -276,6 +283,32 @@ public class FunctionCalls {
         }
     }
 
+    public static class AsyncCall extends EventHandlerCall {
+
+        private Set<ObjectLabel> queueObject;
+
+        private Set<ObjectLabel> dQueueObject;
+
+        public AsyncCall(AbstractNode sourceNode, Value function,
+                         List<Value> args,
+                         Set<ObjectLabel> thisTargets,
+                         State state,
+                         Set<ObjectLabel> queueObject,
+                         Set<ObjectLabel> dQueueObject) {
+            super(sourceNode, function, args, thisTargets, state);
+            this.queueObject = queueObject;
+            this.dQueueObject = dQueueObject;
+        }
+
+        public Set<ObjectLabel> getQueueObject() {
+            return queueObject != null ? queueObject : newSet();
+        }
+
+        public Set<ObjectLabel> getdQueueObject() {
+            return dQueueObject;
+        }
+    }
+
     /**
      * Convenience class for creating the CallInfo for an implicit call.
      */
@@ -355,7 +388,74 @@ public class FunctionCalls {
                                     c.getState().setExecutionContext(call.getExecutionContext());
                                     if (call.getResultRegister() != AbstractNode.NO_VALUE)
                                         c.getState().writeRegister(call.getResultRegister(), res);
-                                    c.propagateToBasicBlock(c.getState(), call.getSourceNode().getBlock().getSingleSuccessor(), c.getState().getContext());
+
+                                    HostObject hostObject = objlabel.getHostObject();
+                                    Set<QueueContext> queueContexts = null;
+                                    CallbackGraph callbackGraph = c.getAnalysisLatticeElement()
+                                            .getCallbackGraph();
+                                    boolean restrictSchedule = callbackGraph.isAnalyzed(
+                                            hostObject, c.getState().getCallbackContext());
+                                    callbackGraph.markAnalyzed(hostObject,
+                                            c.getState().getCallbackContext());
+                                    if (c.getState().getQueueChain() != null)
+                                        queueContexts = c.getState().getQueueChain().getTop();
+                                    if (hostObject instanceof DefaultReactionFunction) {
+                                        /*
+                                           If the current function is the default reaction,
+                                           then settle the dependent queue object (as specified
+                                           in the queue chain) accordingly.
+                                         */
+                                        boolean shouldResolve = ((DefaultReactionFunction)
+                                                hostObject).getKind() == DefaultReactionFunction.Kind.ON_FULFILL;
+                                        c.getState().settleQueueObjects(
+                                                res, shouldResolve, call.getThis(), true, restrictSchedule);
+                                        c.getState().popQueueChain();
+                                    } else if (call.getSourceNode().isEventLoop()) {
+                                        c.getState().settleQueueObjects(
+                                                res, true, call.getThis(), true, restrictSchedule);
+                                        c.getState().popQueueChain();
+                                    }
+
+                                    /*
+                                       If we are currently evaluating one of the resolving functions
+                                       (i.e. resolve, reject) we check if the current block belongs to
+                                       one of the function where these resolving functions were passed
+                                       as arguments. If this is the case, we stop the execution of the
+                                       current function, and we propagate state to the ordinary exit of
+                                       the function.
+                                     */
+                                    boolean propagateToFunExit = hostObject instanceof ResolvingFunction
+                                            && ((ResolvingFunction) hostObject)
+                                                .getCalleeFuns()
+                                                .contains(c.getState().getBasicBlock().getFunction());
+                                    if (propagateToFunExit) {
+                                        c.propagateToBasicBlock(
+                                                c.getState(),
+                                                call.getSourceNode().getBlock().getFunction().getOrdinaryExit(),
+                                                c.getState().getContext());
+                                    } else if (objlabel.getHostObject() != ECMAScriptObjects.PROMISE) {
+                                        /* This is a trick: At this point, We do not propagate the
+                                           state coming from the built-in Promise constructor.
+
+                                           Instead the correct state is propagated from the
+                                           execution of the Promise executor. */
+                                        if (call.getSourceNode().isEventLoop() &&
+                                                !Options.get().isCallbackSensitivityDisabled()) {
+                                            FunctionCalls.propagateToNextCall(
+                                                    call.getSourceNode(), c.getState(), c,
+                                                    hostObject, queueContexts,
+                                                    c.getState().getContext());
+                                        } else {
+                                            if (call.getSourceNode().isEventLoop())
+                                                c.getState().removeQueueObjects();
+                                            c.propagateToBasicBlock(
+                                                    c.getState(),
+                                                    call.getSourceNode()
+                                                            .getBlock()
+                                                            .getSingleSuccessor(),
+                                                    c.getState().getContext());
+                                        }
+                                    }
                                 }
                             });
                 } else { // user-defined function
@@ -374,6 +474,88 @@ public class FunctionCalls {
         c.getMonitoring().visitCall(c.getNode(), funval);
         if (maybe_non_function)
             Exceptions.throwTypeError(c);
+    }
+
+    private static void propagateToNextCall(Set<CallbackGraph.CallbackGraphNode> nextCalls,
+                                            State state,
+                                            AbstractNode node,
+                                            Context callerContext,
+                                            Solver.SolverInterface c) {
+        if (nextCalls.isEmpty()) {
+            state.removeQueueObjects();
+            c.propagateToBasicBlock(state, node.getBlock().getSingleSuccessor(),
+                    callerContext);
+            return;
+        }
+        CallbackGraph callbackGraph = c.getAnalysisLatticeElement()
+                .getCallbackGraph();
+        for (CallbackGraph.CallbackGraphNode nextCallNode : nextCalls) {
+            CallbackCallInfo nextCall = callbackGraph.getCallbackInfo(
+                    nextCallNode);
+            State callState = state.clone();
+            AsyncEvents.pushLevels(
+                    callState, InitialStateBuilder.SET_TIMEOUT_QUEUE_OBJ);
+            AsyncEvents.pushLevels(
+                    callState, InitialStateBuilder.ASYNC_IO);
+
+            boolean changed = callbackGraph.propagateState(callState, nextCallNode);
+            if (callbackGraph.isVisited(nextCallNode) && !changed)
+                continue;
+            callbackGraph.markVisited(nextCallNode);
+            c.withStateAndNode(callState, node, () -> {
+                callState.setCallbackContext(nextCallNode.getSecond());
+                callState.appendToQueueChain(
+                        nextCall.getDependentQueueObjects(),
+                        nextCall.isImplicit());
+                FunctionCalls.callFunction(
+                        new FunctionCalls.AsyncCall(
+                                node,
+                                nextCall.getCallback(),
+                                nextCall.getArgs(),
+                                nextCall.getThisObjs(),
+                                callState,
+                                nextCall.getQueueObjects(),
+                                nextCall.getDependentQueueObjects()),
+                        c);
+                return null;
+            });
+
+        }
+    }
+    public static void propagateToNextCall(AbstractNode node,
+                                           State state,
+                                           Solver.SolverInterface c,
+                                           HostObject function,
+                                           Set<QueueContext> queueContexts,
+                                           Context callerContext) {
+        if (queueContexts == null) {
+            c.propagateToBasicBlock(state, node.getBlock().getSingleSuccessor(),
+                    callerContext);
+            return;
+        }
+        CallbackGraph callbackGraph = c.getAnalysisLatticeElement()
+                .getCallbackGraph();
+        Set<CallbackGraph.CallbackGraphNode> nextCalls = callbackGraph
+                .getNextCalls(function, state.getCallbackContext());
+        propagateToNextCall(nextCalls, state, node, callerContext, c);
+    }
+
+    public static void propagateToNextCall(AbstractNode node,
+                                           State state,
+                                           Solver.SolverInterface c,
+                                           Function function,
+                                           Set<QueueContext> queueContexts,
+                                           Context callerContext) {
+        if (queueContexts == null) {
+            c.propagateToBasicBlock(state, node.getBlock().getSingleSuccessor(),
+                    callerContext);
+            return;
+        }
+        CallbackGraph callbackGraph = c.getAnalysisLatticeElement()
+                .getCallbackGraph();
+        Set<CallbackGraph.CallbackGraphNode> nextCalls = callbackGraph
+                .getNextCalls(function, state.getCallbackContext());
+        propagateToNextCall(nextCalls, state, node, callerContext, c);
     }
 
     /**

@@ -27,6 +27,8 @@ import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
 
+import java.util.List;
+
 /**
  * Strategy-pattern interface for context sensitivity strategies.
  */
@@ -60,7 +62,11 @@ public interface IContextSensitivityStrategy {
     /**
      * Constructs a context for call.
      */
-    Context makeFunctionEntryContext(State state, ObjectLabel function, FunctionCalls.CallInfo callInfo, Value thisval, Solver.SolverInterface c);
+    Context makeFunctionEntryContext(State state, ObjectLabel function,
+                                     FunctionCalls.CallInfo callInfo, Value thisval,
+                                     Value queueObj, Value dQueueObj,
+                                     List<Value> resolveValue,
+                                     Solver.SolverInterface c);
 
     /**
      * Constructs a context for entering a for-in body.

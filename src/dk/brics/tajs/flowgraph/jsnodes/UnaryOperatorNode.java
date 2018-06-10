@@ -127,6 +127,11 @@ public class UnaryOperatorNode extends LoadNode {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (arg_reg == NO_VALUE)
             throw new AnalysisException("Invalid argument register: " + toString());

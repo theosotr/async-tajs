@@ -138,7 +138,11 @@ public class StaticDeterminacyContextSensitivityStrategy implements IContextSens
      * allocation site).
      */
     @Override
-    public Context makeFunctionEntryContext(State state, ObjectLabel function, FunctionCalls.CallInfo callInfo, Value thisval, Solver.SolverInterface c) {
+    public Context makeFunctionEntryContext(State state, ObjectLabel function, FunctionCalls.CallInfo callInfo,
+                                            Value thisval, Value queueObj,
+                                            Value dQueueObj,
+                                            List<Value> resolveValue,
+                                            Solver.SolverInterface c) {
         assert (function.getKind() == ObjectLabel.Kind.FUNCTION);
         // set thisval for object sensitivity (unlike traditional object sensitivity we use abstract values instead of individual object labels)
         /*Value*/ thisval = null; // FIXME: why not use the thisval argument? (github #479)
@@ -150,7 +154,8 @@ public class StaticDeterminacyContextSensitivityStrategy implements IContextSens
 
         ContextArguments funArgs = decideCallContextArguments(function, callInfo, state, c);
 
-        return Context.make(thisval, funArgs, null, null, null);
+        return Context.make(thisval, funArgs, null, null, null,
+                            queueObj, dQueueObj, resolveValue);
     }
 
     @Override

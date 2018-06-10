@@ -1,0 +1,39 @@
+test-resources/src/async/test10.js:23:5: [definite] Dead assignment, property then is never read
+test-resources/src/async/test10.js:39:5: [definite] Dead assignment, property then is never read
+test-resources/src/async/test10.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test10.js:44:21: [definite] The variable rej is never used
+test-resources/src/async/test10.js:44:21: [definite] The variable res is never used
+test-resources/src/async/test10.js:55:9: [definite] Unreachable function function8
+test-resources/src/async/test10.js:34:20: [maybe] The variable val has values with different types
+test-resources/src/async/test10.js:48:20: [maybe] The variable val has values with different types
+test-resources/src/async/test10.js:4:5: [info] Abstract value: "executed"
+test-resources/src/async/test10.js:24:9: [info] Abstract value: "thenable is executed"
+test-resources/src/async/test10.js:34:5: [info] Abstract value: 3.0|"thenable"
+test-resources/src/async/test10.js:40:9: [info] Abstract value: "thenable is executed"
+test-resources/src/async/test10.js:48:5: [info] Abstract value: 2.0|"thenable"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"function1-3[Q=[@Promise#node19], R=[@Promise#node27]]" -> "function5-30[Q=[@Promise#node83], R=[@Promise#node91]]";
+"function1-3[Q=[@Promise#node19], R=[@Promise#node27]]" -> "function7-47[Q=[@Promise#node108], R=[@Promise#node116]]";
+"function2-10[Q=[@Promise#node37], R=[@Promise#node45]]" -> "function5-30[Q=[@Promise#node83], R=[@Promise#node91]]";
+"function2-10[Q=[@Promise#node37], R=[@Promise#node45]]" -> "function7-47[Q=[@Promise#node108], R=[@Promise#node116]]";
+"function3-17[Q=[@Promise#node58], R=[@Promise#node66]]" -> "function5-30[Q=[@Promise#node83], R=[@Promise#node91]]";
+"function3-17[Q=[@Promise#node58], R=[@Promise#node66]]" -> "function7-47[Q=[@Promise#node108], R=[@Promise#node116]]";
+"function4-23[Q=[@Object#node67], R=[@Promise#node83]]" -> "function5-30[Q=[@Promise#node83], R=[@Promise#node91]]";
+"function4-23[Q=[@Object#node67], R=[@Promise#node83]]" -> "function7-47[Q=[@Promise#node108], R=[@Promise#node116]]";
+"function5-30[Q=[@Promise#node83], R=[@Promise#node91]]";
+"function6-39[Q=[@Object#node92], R=[@Promise#node108]]" -> "function5-30[Q=[@Promise#node83], R=[@Promise#node91]]";
+"function6-39[Q=[@Object#node92], R=[@Promise#node108]]" -> "function7-47[Q=[@Promise#node108], R=[@Promise#node116]]";
+"function7-47[Q=[@Promise#node108], R=[@Promise#node116]]";
+"race[@0]" -> "race[@1]";
+"race[@1]" -> "race[@2]";
+"race[@2]" -> "race[@3]";
+"race[@3]" -> "race[@4]";
+"race[@4]" -> "race[@5]";
+"race[@5]" -> "function1-3[Q=[@Promise#node19], R=[@Promise#node27]]";
+"race[@5]" -> "function2-10[Q=[@Promise#node37], R=[@Promise#node45]]";
+"race[@5]" -> "function3-17[Q=[@Promise#node58], R=[@Promise#node66]]";
+"race[@5]" -> "function4-23[Q=[@Object#node67], R=[@Promise#node83]]";
+"race[@5]" -> "function6-39[Q=[@Object#node92], R=[@Promise#node108]]";
+}

@@ -1,0 +1,16 @@
+test-resources/src/async/test16.js:20:10: [definite] Dead assignment, property foo is never read
+test-resources/src/async/test16.js:20:16: [definite] Dead assignment, property bar is never read
+test-resources/src/async/test16.js:24:5: [definite] Reading absent property bar
+test-resources/src/async/test16.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test16.js:24:5: [maybe] Converting primitive number to object
+test-resources/src/async/test16.js:13:5: [info] Abstract value: "should be printed"
+test-resources/src/async/test16.js:23:5: [info] Abstract value: [@Object#node77]
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-8[Q=[@Promise#node19], R=[@Promise#node58]]" -> "la-19[Q=[@Promise#node30], R=[@Promise#node33]]";
+"baz-17[Q=[@Promise#node13], R=[@Promise#node30]]" -> "lala-22[Q=[@Promise#node13], R=[@Promise#node38]]";
+"foo-6[Q=[@Promise#node13], R=[@Promise#node25]]" -> "baz-17[Q=[@Promise#node13], R=[@Promise#node30]]";
+"la-19[Q=[@Promise#node30], R=[@Promise#node33]]";
+"lala-22[Q=[@Promise#node13], R=[@Promise#node38]]" -> "bar-8[Q=[@Promise#node19], R=[@Promise#node58]]";
+}

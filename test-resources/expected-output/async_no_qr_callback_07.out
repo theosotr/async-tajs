@@ -1,0 +1,17 @@
+test-resources/src/async/test16.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test16.js:10:9: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test16.js:24:5: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test16.js:24:5: [maybe] Reading absent property bar
+test-resources/src/async/test16.js:24:5: [maybe] Converting primitive number to object
+test-resources/src/async/test16.js:13:5: [info] Abstract value: "should be printed"
+test-resources/src/async/test16.js:23:5: [info] Abstract value: Undef|[@Object#node84, @Object#node77]
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-8[]";
+"baz-17[]" -> "lala-22[]";
+"foo-6[]" -> "baz-17[]";
+"la-19[]";
+"lala-22[]" -> "bar-8[]";
+"lala-22[]" -> "la-19[]";
+}

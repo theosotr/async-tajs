@@ -21,6 +21,9 @@ import dk.brics.tajs.analysis.dom.DOMFunctions;
 import dk.brics.tajs.analysis.dom.DOMObjects;
 import dk.brics.tajs.analysis.nativeobjects.ECMAScriptFunctions;
 import dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects;
+import dk.brics.tajs.analysis.nativeobjects.InternalFunction;
+import dk.brics.tajs.analysis.nativeobjects.JSPromise;
+import dk.brics.tajs.analysis.nativeobjects.ResolvingFunction;
 import dk.brics.tajs.analysis.nativeobjects.TAJSFunction;
 import dk.brics.tajs.analysis.nativeobjects.TAJSFunctionEvaluator;
 import dk.brics.tajs.analysis.signatures.NativeFunctionSignatureChecker;
@@ -36,6 +39,7 @@ import dk.brics.tajs.util.AnalysisLimitationException;
 public enum HostAPIs implements HostAPI {
 
     ECMASCRIPT_NATIVE("ECMAScript native functions", "native"),
+    ECMASCRIPT_INTERNAL("ECMAScript internal functions", "internal"),
     DOCUMENT_OBJECT_MODEL("The Document Object Model", "dom"),
     TAJS("TAJS_-functions", "tajs"),
     PARTIAL_HOST_MODEL("Partially modeled host APIs", "partial");
@@ -61,6 +65,8 @@ public enum HostAPIs implements HostAPI {
                 return DOMFunctions.evaluate((DOMObjects) hostobject, call, c);
             case TAJS:
                 return TAJSFunctionEvaluator.evaluate((TAJSFunction) hostobject, call, c);
+            case ECMASCRIPT_INTERNAL:
+                return ((InternalFunction) hostobject).evaluate(c.getState(), call, c);
             case PARTIAL_HOST_MODEL:
                 throw new AnalysisLimitationException.AnalysisModelLimitationException(call.getSourceNode().getSourceLocation() + ": No model for " + hostobject);
             default:

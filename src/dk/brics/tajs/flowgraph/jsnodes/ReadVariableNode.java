@@ -79,6 +79,11 @@ public class ReadVariableNode extends LoadNode {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (varname == null)
             throw new AnalysisException("Null variable name: " + toString());

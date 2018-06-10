@@ -269,7 +269,9 @@ public class JSObject {
                 return state.readInternalPrototype(labels);
             }
 
-            case OBJECT_ISFROZEN: {
+            case OBJECT_ISFROZEN:
+            case OBJECT_ISSEALED:
+            case OBJECT_ISEXTENSIBLE: {
                 return Value.makeAnyBool();
             }
 

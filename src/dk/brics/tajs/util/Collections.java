@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * Miscellaneous collection construction methods.
@@ -260,5 +261,21 @@ public class Collections {
      */
     public static <C,T> Collection<T> map(Collection<C> ts, Function<C,T> f) {
         return ts.stream().map(f).collect(Collectors.toList());
+    }
+
+    public static <T> Set<List<T>> joinSetLists(
+            Set<List<T>> toSet, Set<List<T>> fromSet) {
+        if (toSet.isEmpty())
+            return fromSet;
+        if (fromSet.isEmpty())
+            return toSet;
+        Set<List<T>> jointSet = newSet();
+        for (List<T> elem : toSet) {
+            for (List<T> elemFrom : fromSet)
+                jointSet.add(
+                        Stream.concat(elem.stream(), elemFrom.stream())
+                                .collect(java.util.stream.Collectors.toList()));
+        }
+        return jointSet;
     }
 }

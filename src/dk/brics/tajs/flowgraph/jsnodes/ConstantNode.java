@@ -195,4 +195,9 @@ public class ConstantNode extends LoadNode {
     public boolean canThrowExceptions() {
         return false;
     }
+
+    @Override
+    public boolean isEventLoop() {
+        return false;
+    }
 }

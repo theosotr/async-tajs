@@ -48,6 +48,11 @@ public class EndWithNode extends Node {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public boolean canThrowExceptions() {
         return false;
     }

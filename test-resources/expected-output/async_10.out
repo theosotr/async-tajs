@@ -1,0 +1,11 @@
+test-resources/src/async/test10.js:23:5: [definite] Dead assignment, property then is never read
+test-resources/src/async/test10.js:39:5: [definite] Dead assignment, property then is never read
+test-resources/src/async/test10.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test10.js:44:21: [definite] The variable rej is never used
+test-resources/src/async/test10.js:44:21: [definite] The variable res is never used
+test-resources/src/async/test10.js:55:9: [definite] Unreachable function function8
+test-resources/src/async/test10.js:4:5: [info] Abstract value: "executed"
+test-resources/src/async/test10.js:24:9: [info] Abstract value: "thenable is executed"
+test-resources/src/async/test10.js:34:5: [info] Abstract value: 3.0
+test-resources/src/async/test10.js:40:9: [info] Abstract value: "thenable is executed"
+test-resources/src/async/test10.js:48:5: [info] Abstract value: 2.0

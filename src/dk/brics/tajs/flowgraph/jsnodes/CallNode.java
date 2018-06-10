@@ -261,6 +261,11 @@ public class CallNode extends LoadNode {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (b.getNodes().size() != 1)
             throw new AnalysisException("Node should have its own basic block: " + toString());

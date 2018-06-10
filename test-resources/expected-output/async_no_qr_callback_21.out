@@ -1,0 +1,17 @@
+test-resources/src/async/test33.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test33.js:19:5: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test33.js:23:5: [info] Abstract value: "baz"
+test-resources/src/async/test33.js:25:5: [info] Abstract value: "catch executed"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar1-18[]" -> "bar3-24[]";
+"bar1-18[]" -> "foo2-13[]";
+"bar2-22[]";
+"bar3-24[]";
+"foo1-9[]" -> "bar3-24[]";
+"foo1-9[]" -> "foo2-13[]";
+"foo2-13[]" -> "bar2-22[]";
+"resolve[#0]" -> "bar1-18[]";
+"resolve[#0]" -> "foo1-9[]";
+}

@@ -1,0 +1,14 @@
+test-resources/src/async/test25.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test25.js:18:6: [info] Abstract value: "bar"
+test-resources/src/async/test25.js:23:7: [info] Abstract value: "foo appended text"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-8[Q=[@Promise#node24], R=[@Promise#node27]]" -> "fn-22[Q=[@Promise#node27], R=[@Promise#node30]]";
+"baz-17[Q=[@Promise#node21], R=[@Promise#node24]]" -> "bar-8[Q=[@Promise#node24], R=[@Promise#node27]]";
+"fn-22[Q=[@Promise#node27], R=[@Promise#node30]]";
+"foo-1[Q=[@Promise#node15], R=[@Promise#node21]]" -> "lala-31[Q=[@Promise#node35], R=[@Promise#node41]]";
+"la-42[Q=[@Promise#node41], R=[@Promise#node44]]" -> "bar-8[Q=[@Promise#node24], R=[@Promise#node27]]";
+"lala-31[Q=[@Promise#node35], R=[@Promise#node41]]" -> "baz-17[Q=[@Promise#node21], R=[@Promise#node24]]";
+"lala-31[Q=[@Promise#node35], R=[@Promise#node41]]" -> "la-42[Q=[@Promise#node41], R=[@Promise#node44]]";
+}

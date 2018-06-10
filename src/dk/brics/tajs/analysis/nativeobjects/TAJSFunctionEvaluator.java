@@ -18,6 +18,7 @@ package dk.brics.tajs.analysis.nativeobjects;
 
 import dk.brics.tajs.analysis.AsyncEvents;
 import dk.brics.tajs.analysis.Conversion;
+import dk.brics.tajs.analysis.Exceptions;
 import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.FunctionCalls.CallInfo;
 import dk.brics.tajs.analysis.InitialStateBuilder;
@@ -43,6 +44,7 @@ import dk.brics.tajs.lattice.HeapContext;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
 import dk.brics.tajs.lattice.PKey.StringPKey;
+import dk.brics.tajs.lattice.QueueObject;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.UnknownValueResolver;
 import dk.brics.tajs.lattice.Value;
@@ -63,10 +65,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
+import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_ADDASYNCIOCALLBACK;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_ADD_CONTEXT_SENSITIVITY;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_ASSERT;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_ASSERT_EQUALS;
@@ -78,9 +83,11 @@ import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_DUMPMODIFIEDSTATE;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_DUMPNF;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_DUMPOBJECT;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_DUMPPROTOTYPE;
+import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_DUMPQUEUE;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_DUMPSTATE;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_DUMPVALUE;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_FIRST_ORDER_STRING_REPLACE;
+import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_FULFILLEDWITH;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_GET_AJAX_EVENT;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_GET_EVENT_LISTENER;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_GET_KEYBOARD_EVENT;
@@ -88,10 +95,12 @@ import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_GET_MAIN;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_GET_MOUSE_EVENT;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_GET_UI_EVENT;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_GET_WHEEL_EVENT;
+import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_HASTIMERCALLBACK;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_JOIN;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_LOAD;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_LOAD_JSON;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_MAKE;
+import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_MAKEGENERICERROR;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_MAKE_CONTEXT_SENSITIVE;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_MAKE_PARTIAL;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_NEW_ARRAY;
@@ -99,7 +108,10 @@ import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_NEW_OBJECT;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_NODE_PARENT_DIR;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_NODE_REQUIRE_RESOLVE;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_NODE_UNURL;
+import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_NOTINQUEUE;
 import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_NOT_IMPLEMENTED;
+import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_PENDING;
+import static dk.brics.tajs.flowgraph.TAJSFunctionName.TAJS_REJECTEDWITH;
 import static dk.brics.tajs.util.Collections.newList;
 import static dk.brics.tajs.util.Collections.newMap;
 import static dk.brics.tajs.util.Collections.newSet;
@@ -110,6 +122,13 @@ import static dk.brics.tajs.util.Collections.newSet;
 public class TAJSFunctionEvaluator {
 
     private static final Map<TAJSFunctionName, TAJSFunctionImplementation> implementations = makeImplementations();
+
+    private static final Map<String, ObjectLabel> TIMER_QUEUE_OBJS;
+
+    static {
+        TIMER_QUEUE_OBJS = new HashMap<>();
+        TIMER_QUEUE_OBJS.put("setTimeout", InitialStateBuilder.SET_TIMEOUT_QUEUE_OBJ);
+    }
 
     public static void main(String[] args) {
         Map<TAJSFunctionName, String> documentationStrings = getMarkdownDocumentationStrings();
@@ -178,6 +197,29 @@ public class TAJSFunctionEvaluator {
                     Value x = FunctionCalls.readParameter(call, state, 0);
                     c.getMonitoring().addMessageInfo(c.getNode(), Severity.HIGH, "Abstract object: " + state.printObject(x) /*+ " (context: " + c.getState().getContext() + ")"*/);
                 });
+        register(implementations,
+                TAJS_DUMPQUEUE,
+                "",
+                "Prints the objects placed in the queue",
+                (call, state, pv, c) -> {
+                    for (Map.Entry<ObjectLabel, Set<QueueObject>> qs: c.getState().getQueue().entrySet())
+                        for (QueueObject qObj: qs.getValue())
+                            c.getMonitoring().addMessageInfo(
+                                    c.getNode(),
+                                    Severity.HIGH,
+                                    "Queue object: " + qs.getKey().toString() + " ==>\n" + qObj.toString());
+                });
+        register(implementations,
+                TAJS_ADDASYNCIOCALLBACK,
+                "TODO",
+                "TODO",
+                (call, state, pv, c) -> AsyncIO.addCallback(state, call, c));
+        register(implementations,
+                TAJS_MAKEGENERICERROR,
+                "",
+                "Value",
+                "Creates an Error object",
+                (call, state, pv, c) -> Exceptions.makeTypeError(c));
         register(implementations,
                 TAJS_DUMPSTATE,
                 "",
@@ -607,6 +649,70 @@ public class TAJSFunctionEvaluator {
                     }
                 });
         register(implementations,
+                TAJS_NOTINQUEUE,
+                "Value value",
+                "Asserts that the object is not in the queue",
+                (call, state, pv, c) -> {
+                    Value x = FunctionCalls.readParameter(call, state, 0);
+                    Set<ObjectLabel> objectLabels = c.getState().getQueue().keySet();
+                    for (ObjectLabel objectLabel: x.getObjectLabels())
+                        if (objectLabels.contains(objectLabel))
+                            throw new AnalysisException(
+                                    "Object " + objectLabel.toString()
+                                    + " found in the queue");
+                });
+        register(implementations,
+                TAJS_PENDING,
+                "Queue object",
+                "Asserts that the object is in the queue in pending state",
+                (call, state, pv, c) -> {
+                    Value x = FunctionCalls.readParameter(call, state, 0);
+                    checkStateAndDefaultValue(x.getObjectLabelUnique(),
+                                              c.getState(),
+                                              QueueObject.QueueState.PENDING,
+                                             null);
+                });
+        register(implementations,
+                TAJS_FULFILLEDWITH,
+                "Queue object, Value fulfilled value",
+                "Asserts that the object is in the queue " +
+                        "and it is fulfilled with the given value",
+                (call, state, pv, c) -> {
+                    Value x = FunctionCalls.readParameter(call, state, 0);
+                    Value y = FunctionCalls.readParameter(call, state, 1);
+                    y = y.restrictToUndef().isMaybeUndef() ? null : y;
+                    checkStateAndDefaultValue(x.getObjectLabelUnique(),
+                                              c.getState(),
+                                              QueueObject.QueueState.FULFILLED,
+                                              y);
+                });
+        register(implementations,
+                TAJS_HASTIMERCALLBACK,
+                "String timer, Value callback",
+                "Asserts that the given timer has registered"
+                        + "the specified callback",
+                (call, state, pv, c) -> {
+                    String timer = FunctionCalls.readParameter(call, state, 0)
+                            .getStr();
+                    Value callback = FunctionCalls.readParameter(call, state, 1)
+                            .restrictToFunctions();
+                    checkTimerCallback(timer, state, callback);
+                });
+        register(implementations,
+                TAJS_REJECTEDWITH,
+                "Queue object, Value rejected value",
+                "Asserts that the object is in the queue " +
+                        "and it is rejected with the given value",
+                (call, state, pv, c) -> {
+                    Value x = FunctionCalls.readParameter(call, state, 0);
+                    Value y = FunctionCalls.readParameter(call, state, 1);
+                    y = y.restrictToUndef().isMaybeUndef() ? null : y;
+                    checkStateAndDefaultValue(x.getObjectLabelUnique(),
+                                              c.getState(),
+                                              QueueObject.QueueState.REJECTED,
+                                              y);
+                });
+        register(implementations,
                 TAJS_NODE_UNURL,
                 "url",
                 "Value",
@@ -638,6 +744,56 @@ public class TAJSFunctionEvaluator {
             return (Value) method.invoke(null);
         } catch (NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
             throw new AnalysisException(sourceLocation + ": " + String.format("Call to %s failed (%s). Method '%s' is not a zero-argument static method on the Value class!", tajsFunctionName.toString(), e.getClass().getSimpleName(), methodName));
+        }
+    }
+
+    private static void checkTimerCallback(String timer, State state,
+                                           Value callback) {
+        ObjectLabel queueObj = TIMER_QUEUE_OBJS.get(timer);
+        if (queueObj == null)
+            throw new AnalysisException(
+                    "Given timer " + timer + " is not supported");
+        Set<QueueObject> queueObjects = state.getQueue().get(queueObj);
+        if (queueObjects.size() != 1)
+            throw new AnalysisException("Object " + queueObj.toString()
+                    + " is associated with multiple queue objects");
+        QueueObject queueObject = queueObjects.iterator().next();
+        boolean hasCallback = queueObject.getResolvedCallbacks()
+                .getAllCallbacks()
+                .stream()
+                .anyMatch(x -> x.getCallback().equals(callback));
+        if (!hasCallback)
+            throw new AnalysisException(
+                    "Timer " + timer + " has not registered callback "
+                    + callback.toString());
+    }
+
+    private static void checkStateAndDefaultValue(ObjectLabel queueObj,
+                                                  State state,
+                                                  QueueObject.QueueState queueState,
+                                                  Value value) {
+        if (queueObj == null)
+            throw new AnalysisException();
+        Set<QueueObject> queueObjects = state.getQueue().get(queueObj);
+        if (queueObjects == null)
+            throw new AnalysisException("Object " + queueObj.toString()
+                    + " not found in the queue");
+        if (queueObjects.size() != 1)
+            throw new AnalysisException("Object " + queueObj.toString()
+                    + " is associated with multiple queue objects");
+        QueueObject queueObject = queueObjects.iterator().next();
+        boolean valsAreEqual = Objects.equals(value, queueObject.getDefaultValue());
+
+        if (queueObject.getState() != queueState
+                || !valsAreEqual) {
+            String val = queueObject.getDefaultValue() == null ?
+                    "null" : queueObject.getDefaultValue().toString();
+            String expectVal = value == null ? "null" : value.toString();
+            throw new AnalysisException("Object " + queueObj.toString()
+                    + " is not in state " + queueState
+                    + " with value " + expectVal
+                    + ". Actual state: " + queueObject.getState()
+                    + ", actual value " + val);
         }
     }
 

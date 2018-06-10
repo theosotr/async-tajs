@@ -16,10 +16,12 @@
 
 package dk.brics.tajs.lattice;
 
+import dk.brics.tajs.options.Options;
 import dk.brics.tajs.solver.IContext;
 import dk.brics.tajs.util.Canonicalizer;
 import dk.brics.tajs.util.DeepImmutable;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -57,10 +59,25 @@ public final class Context implements IContext<Context>, DeepImmutable {
     private final LocalContext localContextAtEntry;
 
     /**
+     * Value of the queue object on which a callback is registered.
+     */
+    private final Value queueObject;
+
+    /**
+     * Object label of the queue object that is fulfilled
+     * with the return value of the callback.
+     */
+    private final Value dependentQueueObject;
+
+    private final List<Value> resolveValue;
+
+    /**
      * Constructs a new context object.
      */
     private Context(Value thisval, ContextArguments funArgs, Map<Integer, Value> specialRegs,
-                    LocalContext localContext, LocalContext localContextAtEntry) {
+                    LocalContext localContext, LocalContext localContextAtEntry,
+                    Value queueObject, Value dependentQueueObject,
+                    List<Value> resolveValue) {
         // ensure canonical representation of empty maps
         if (localContext != null && localContext.getQualifiers().isEmpty()) {
             localContext = null;
@@ -76,18 +93,28 @@ public final class Context implements IContext<Context>, DeepImmutable {
         this.specialRegs = specialRegs;
         this.localContext = localContext;
         this.localContextAtEntry = localContextAtEntry;
+        this.queueObject = queueObject;
+        this.dependentQueueObject = dependentQueueObject;
+        this.resolveValue = resolveValue;
 
         int hashcode = 1;
         hashcode = 31 * hashcode + (thisval != null ? thisval.hashCode() : 0);
         hashcode = 31 * hashcode + (funArgs != null ? funArgs.hashCode() : 0);
         hashcode = 31 * hashcode + (specialRegs != null ? specialRegs.hashCode() : 0);
         hashcode = 31 * hashcode + (localContext != null ? localContext.hashCode() : 0);
+        hashcode = 31 * hashcode + (queueObject != null ? queueObject.hashCode() : 0);
+        hashcode = 31 * hashcode + (dependentQueueObject != null ? dependentQueueObject.hashCode() : 0);
+        hashcode = 31 * hashcode + (resolveValue != null ? resolveValue.hashCode() : 0);
         this.hashcode = hashcode;
     }
 
     public static Context make(Value thisval, ContextArguments funArgs, Map<Integer, Value> specialRegs,
-                               LocalContext localContext, LocalContext localContextAtEntry) {
-        return Canonicalizer.get().canonicalize(new Context(thisval, funArgs, specialRegs, localContext, localContextAtEntry));
+                               LocalContext localContext, LocalContext localContextAtEntry,
+                               Value queueObject, Value dependentQueueObject,
+                               List<Value> resolveValue) {
+        return Canonicalizer.get().canonicalize(new Context(
+                thisval, funArgs, specialRegs, localContext, localContextAtEntry,
+                queueObject, dependentQueueObject, resolveValue));
     }
 
     /**
@@ -125,6 +152,18 @@ public final class Context implements IContext<Context>, DeepImmutable {
         return localContextAtEntry;
     }
 
+    public Value getQueueObject() {
+        return queueObject;
+    }
+
+    public Value getDependentQueueObject() {
+        return dependentQueueObject;
+    }
+
+    public List<Value> getResolveValue() {
+        return resolveValue;
+    }
+
     /**
      * Reconstructs the context at function or for-in entry.
      */
@@ -134,7 +173,23 @@ public final class Context implements IContext<Context>, DeepImmutable {
         if (localContextAtEntry != null && localContextAtEntry.equals(localContext)) {
             return this;
         }
-        return make(thisval, funArgs, specialRegs, localContextAtEntry, localContextAtEntry);
+        return make(thisval, funArgs, specialRegs, localContextAtEntry, localContextAtEntry,
+                    queueObject, dependentQueueObject, resolveValue);
+    }
+
+    /** Creates a callback context from the given context. */
+    public CallbackContext toCallbackContext() {
+        Value qObj = null;
+        Value dQObj = null;
+        if (!Options.get().isQRSensitivityDisabled()) {
+            qObj = this.queueObject;
+            dQObj = this.dependentQueueObject;
+        }
+        List<Value> args = null;
+        if (Options.get().isCallbackParameterSensitivityEnabled())
+            args = resolveValue;
+        // TODO Currently, we do not support parameter sensitivity of callbacks.
+        return new CallbackContext(qObj, dQObj, args, null);
     }
 
     @Override
@@ -160,6 +215,17 @@ public final class Context implements IContext<Context>, DeepImmutable {
         if (specialRegs != null && !specialRegs.equals(c.specialRegs))
             return false;
         if ((localContext == null) != (c.localContext == null))
+            return false;
+        if ((queueObject == null) != (c.queueObject == null))
+            return false;
+        if (queueObject != null && !queueObject.equals(c.queueObject))
+            return false;
+        if ((dependentQueueObject == null) != (c.dependentQueueObject == null))
+            return false;
+        if (dependentQueueObject != null && !dependentQueueObject.equals(
+                c.dependentQueueObject))
+            return false;
+        if (resolveValue != null && !resolveValue.equals(c.resolveValue))
             return false;
         return !(localContext != null && !localContext.equals(c.localContext));
     }
@@ -194,7 +260,18 @@ public final class Context implements IContext<Context>, DeepImmutable {
             if (any)
                 s.append(", ");
             s.append("localContext=").append(localContext);
-            //any = true;
+            any = true;
+        }
+        if (queueObject != null) {
+            if (any)
+                s.append(", ");
+            s.append("Q=").append(queueObject);
+            any = true;
+        }
+        if (dependentQueueObject != null) {
+            if (any)
+                s.append(", ");
+            s.append("R=").append(dependentQueueObject);
         }
         s.append("}");
         return s.toString();

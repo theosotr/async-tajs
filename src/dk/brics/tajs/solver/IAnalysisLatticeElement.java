@@ -72,6 +72,8 @@ public interface IAnalysisLatticeElement<StateType extends IState<StateType, Con
      */
     CallGraph<StateType, ContextType, CallEdgeType> getCallGraph();
 
+    CallbackGraph getCallbackGraph();
+
 //    /**
 //     * Returns the number of states stored for the given basic block.
 //     */

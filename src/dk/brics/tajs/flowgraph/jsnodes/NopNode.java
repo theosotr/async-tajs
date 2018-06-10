@@ -57,4 +57,9 @@ public class NopNode extends Node {
     public boolean canThrowExceptions() {
         return false;
     }
+
+    @Override
+    public boolean isEventLoop() {
+        return false;
+    }
 }

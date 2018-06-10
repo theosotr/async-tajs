@@ -1,0 +1,12 @@
+test-resources/src/async/test11.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test11.js:11:22: [definite] The variable resolve is never used
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-6[Q=[@Promise#node9], R=[@Promise#node17]]";
+"ff2-12[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "ff1-6[Q=[@Promise#node9], R=[@Promise#node17]]";
+"ff2-12[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "ff3-17[Q=[@Promise#node20], R=[@Promise#node28]]";
+"ff3-17[Q=[@Promise#node20], R=[@Promise#node28]]";
+"resolve[#0]" -> "ff1-6[Q=[@Promise#node9], R=[@Promise#node17]]";
+"resolve[#0]" -> "ff3-17[Q=[@Promise#node20], R=[@Promise#node28]]";
+}

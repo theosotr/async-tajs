@@ -53,6 +53,11 @@ public class CustomContextSensitivityStrategy implements IContextSensitivityStra
 
     private IContextSensitivityStrategy defaultContextSensitivity;
 
+    public static final int QUEUE_OBJECT_SENSITIVITY = -3;
+    public static final int CLOSURE_VARIABLE_SENSITIVITY = -2;
+    public static final int OBJECT_SENSITIVITY = -1;
+
+
     /**
      * Creates a new <code>CustomContextSensitivityWrapper</code> by wrapping the given context sensitivity strategy.
      */
@@ -72,7 +77,8 @@ public class CustomContextSensitivityStrategy implements IContextSensitivityStra
 
     @Override
     public HeapContext makeActivationAndArgumentsHeapContext(State state, ObjectLabel function, Value thisval, FunctionCalls.CallInfo callInfo, Solver.SolverInterface c) {
-        ContextArguments contextArguments = makeContextArguments(state, function, thisval, callInfo);
+        ContextArguments contextArguments = makeContextArguments(
+                state, function, thisval, null, callInfo);
         if (contextArguments != null) {
             return HeapContext.make(contextArguments, null);
         }
@@ -95,12 +101,18 @@ public class CustomContextSensitivityStrategy implements IContextSensitivityStra
     }
 
     @Override
-    public Context makeFunctionEntryContext(State state, ObjectLabel function, FunctionCalls.CallInfo callInfo, Value thisval, Solver.SolverInterface c) {
-        ContextArguments contextArguments = makeContextArguments(state, function, thisval, callInfo);
+    public Context makeFunctionEntryContext(State state, ObjectLabel function, FunctionCalls.CallInfo callInfo,
+                                            Value thisval, Value queueObj, Value dQueueObj,
+                                            List<Value> resolveValue,
+                                            Solver.SolverInterface c) {
+        ContextArguments contextArguments = makeContextArguments(
+                state, function, thisval, queueObj, callInfo);
         if (contextArguments != null) {
-            return Context.make(null, contextArguments, null, null, null);
+            return Context.make(null, contextArguments, null, null,
+                               null, queueObj, dQueueObj, resolveValue);
         }
-        return defaultContextSensitivity.makeFunctionEntryContext(state, function, callInfo, thisval, c);
+        return defaultContextSensitivity.makeFunctionEntryContext(
+                state, function, callInfo, thisval, queueObj, dQueueObj, resolveValue, c);
     }
 
     @Override
@@ -166,12 +178,15 @@ public class CustomContextSensitivityStrategy implements IContextSensitivityStra
         }
 
         Map<String, Value> closureVariableValues = newMap();
-        c.getFlowGraph().getSyntacticInformation().getClosureVariableNames(fun).forEach(n -> {
-            Value parameterValue = outerFunArgs.getParameterValue(n);
-            if (parameterValue != null) {
-                closureVariableValues.put(n, parameterValue);
-            }
-        });
+        Set<String> closures = c.getFlowGraph().getSyntacticInformation().getClosureVariableNames(fun);
+        if (closures != null) {
+            closures.forEach(n -> {
+                Value parameterValue = outerFunArgs.getParameterValue(n);
+                if (parameterValue != null) {
+                    closureVariableValues.put(n, parameterValue);
+                }
+            });
+        }
 
         if (closureVariableValues.isEmpty()) {
             return null;
@@ -182,7 +197,9 @@ public class CustomContextSensitivityStrategy implements IContextSensitivityStra
     /**
      * Attempts to make a context for a call, but only for callees that have been made context sensitive.
      */
-    public ContextArguments makeContextArguments(State edgeState, ObjectLabel calleeObj, Value thisval, FunctionCalls.CallInfo callInfo) {
+    public ContextArguments makeContextArguments(State edgeState, ObjectLabel calleeObj,
+                                                 Value thisval, Value queueObj,
+                                                 FunctionCalls.CallInfo callInfo) {
         Function callee = calleeObj.getFunction();
         ContextArguments calleeContext = calleeObj.getHeapContext().getFunctionArguments();
         Map<String, Value> closureVariables = calleeContext != null ? calleeContext.getSelectedClosureVariables() : null;
@@ -192,7 +209,8 @@ public class CustomContextSensitivityStrategy implements IContextSensitivityStra
             key = Pair.make(null, callee); // try the default caller
         }
         if (sensitiveFunctions.containsKey(key)) {
-            return reallyMakeContextArguments(sensitiveFunctions.get(key), edgeState, callee, closureVariables, callInfo, thisval);
+            return reallyMakeContextArguments(sensitiveFunctions.get(key), edgeState, callee,
+                    closureVariables, callInfo, thisval, queueObj);
         }
         return null;
     }
@@ -201,7 +219,11 @@ public class CustomContextSensitivityStrategy implements IContextSensitivityStra
      * Creates a context for a call.
      * The context can encode parameter-sensitivity, object-sensitivity, and closure-variable-sensitivity.
      */
-    private ContextArguments reallyMakeContextArguments(Set<Integer> arguments, State edgeState, Function callee, Map<String, Value> closureVariables, FunctionCalls.CallInfo callInfo, Value this_objs) {
+    private ContextArguments reallyMakeContextArguments(Set<Integer> arguments, State edgeState, Function callee,
+                                                        Map<String, Value> closureVariables,
+                                                        FunctionCalls.CallInfo callInfo,
+                                                        Value this_objs,
+                                                        Value queueObj) {
         List<String> parameterNames = callee.getParameterNames();
         List<Value> args = newList();
         int max = Math.max(callee.getParameterNames().size(), arguments.stream().max(Integer::compare).get());
@@ -219,10 +241,10 @@ public class CustomContextSensitivityStrategy implements IContextSensitivityStra
             args.add(qualifier);
         }
         Map<String, Value> nonArguments = newMap();
-        if (arguments.contains(-1)) {  // enables object-sensitivity
+        if (arguments.contains(OBJECT_SENSITIVITY)) {  // enables object-sensitivity
             nonArguments.put("this", this_objs);
         }
-        if (arguments.contains(-2)) { // enables closure parameter sensitivity
+        if (arguments.contains(CLOSURE_VARIABLE_SENSITIVITY)) { // enables closure parameter sensitivity
             if (closureVariables != null) {
                 closureVariables.forEach((n, v) -> {
                     if (!parameterNames.contains(n)) {
@@ -231,6 +253,7 @@ public class CustomContextSensitivityStrategy implements IContextSensitivityStra
                 });
             }
         }
-        return new ContextArguments(parameterNames, args, nonArguments);
+        return new ContextArguments(parameterNames, args, nonArguments,
+                arguments.contains(QUEUE_OBJECT_SENSITIVITY) ? queueObj : null);
     }
 }

@@ -1,0 +1,10 @@
+test-resources/src/async/test29.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test29.js:5:12: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test29.js:7:9: [maybe] TypeError, accessing property of null/undefined
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-3[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "baz-4[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"baz-4[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"foo-2[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "bar-3[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+}

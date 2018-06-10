@@ -60,6 +60,11 @@ public class BeginWithNode extends Node {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (object_reg == NO_VALUE)
             throw new AnalysisException("Invalid object register: " + toString());

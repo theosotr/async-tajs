@@ -1,0 +1,9 @@
+test-resources/src/async/test32.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test32.js:9:5: [maybe] TypeError, accessing property of null/undefined
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"fun1-7[]";
+"fun2-14[]" -> "resolve[#0]";
+"resolve[#0]" -> "fun1-7[]";
+}

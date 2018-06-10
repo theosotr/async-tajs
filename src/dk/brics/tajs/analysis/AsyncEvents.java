@@ -19,15 +19,15 @@ package dk.brics.tajs.analysis;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.jsnodes.EventDispatcherNode;
 import dk.brics.tajs.lattice.ObjectLabel;
+import dk.brics.tajs.lattice.QueueObject;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.UnknownValueResolver;
 import dk.brics.tajs.lattice.Value;
-import dk.brics.tajs.util.Collections;
+import dk.brics.tajs.solver.CallbackGraph;
+import dk.brics.tajs.util.AnalysisException;
 
-import java.util.List;
 import java.util.Set;
 
-import static dk.brics.tajs.util.Collections.newList;
 
 /**
  * Processing of asynchronous events (that do not involve HTML DOM).
@@ -46,17 +46,49 @@ public class AsyncEvents {
         state.getExtras().addToMaySet(maySetKey, objectLabels);
     }
 
+    public static void pushLevels(State state, ObjectLabel objectLabel) {
+        Set<QueueObject> queueObjects = state.getQueue()
+                .get(objectLabel);
+        if (queueObjects.size() != 1)
+            throw new AnalysisException();
+        QueueObject queueObject = queueObjects.iterator().next();
+        queueObject.getResolvedCallbacks().pushLevel();
+        queueObject.getRejectedCallbacks().pushLevel();
+    }
+
     public static void emit(EventDispatcherNode n, Solver.SolverInterface c) {
         if (n.getType() != EventDispatcherNode.Type.ASYNC) {
             return;
         }
 
         State state = c.getState();
-        Set<ObjectLabel> handlers = state.getExtras().getFromMaySet(maySetKey);
-        List<Value> args = newList();
-
-        State callState = state.clone();
-        c.withState(callState, () ->
-                FunctionCalls.callFunction(new FunctionCalls.EventHandlerCall(n, Value.makeObject(handlers), args, Collections.singleton(InitialStateBuilder.GLOBAL), callState), c));
+        Set<CallbackGraph.CallbackGraphNode> firstCallbacks = state
+                .getNextCallbacksToRun();
+        if (firstCallbacks == null || firstCallbacks.isEmpty())
+            return;
+        CallbackGraph callbackGraph = c.getAnalysisLatticeElement()
+                .getCallbackGraph();
+        for (CallbackGraph.CallbackGraphNode node : firstCallbacks) {
+            CallbackCallInfo firstCallback = callbackGraph
+                    .getCallbackInfo(node);
+            State callState = state.clone();
+            pushLevels(callState, InitialStateBuilder.SET_TIMEOUT_QUEUE_OBJ);
+            pushLevels(callState, InitialStateBuilder.ASYNC_IO);
+            c.withState(callState, () -> {
+                    callState.setCallbackContext(node.getSecond());
+                    callState.appendToQueueChain(firstCallback.getDependentQueueObjects(),
+                                                 firstCallback.isImplicit());
+                    FunctionCalls.callFunction(
+                        new FunctionCalls.AsyncCall(
+                            n,
+                            firstCallback.getCallback(),
+                            firstCallback.getArgs(),
+                            firstCallback.getThisObjs(),
+                            callState,
+                            firstCallback.getQueueObjects(),
+                            firstCallback.getDependentQueueObjects()),
+                    c);
+            });
+        }
     }
 }

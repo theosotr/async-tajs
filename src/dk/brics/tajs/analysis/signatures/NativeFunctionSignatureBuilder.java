@@ -186,6 +186,12 @@ import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.OBJECT_VALU
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.PARSEFLOAT;
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.PARSEINT;
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.PRINT;
+import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.PROMISE;
+import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.PROMISE_CATCH;
+import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.PROMISE_RACE;
+import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.PROMISE_REJECT;
+import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.PROMISE_RESOLVE;
+import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.PROMISE_THEN;
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.PROXY;
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.RANGE_ERROR;
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.REFERENCE_ERROR;
@@ -194,6 +200,7 @@ import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.REGEXP_COMP
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.REGEXP_EXEC;
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.REGEXP_TEST;
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.REGEXP_TOSTRING;
+import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.SET_TIMEOUT;
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.STRING;
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.STRING_CHARAT;
 import static dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects.STRING_CHARCODEAT;
@@ -330,6 +337,7 @@ public class NativeFunctionSignatureBuilder {
         addConstructorSig(OBJECT, OptionalParameters.ObjectIfNotNullUndefined);
         addConstructorVarSig(FUNCTION, OptionalParameters.String);
         addConstructorSig(BOOLEAN, OptionalParameters.Boolean);
+        addConstructorSig(PROMISE, MandatoryParameters.Function);
         addSig(DATE,
                 new NativeFunctionSignatureChecker.ArityOverloadedSignature(
                         new NativeFunctionSignatureChecker.SimpleSignature(true, none, MandatoryParameters.Number /* year */, MandatoryParameters.Number /* month */, OptionalParameters.Number /* date */, OptionalParameters.Number /* hours */, OptionalParameters.Number /* minutes */, OptionalParameters.Number /* seconds */, OptionalParameters.Number /* milliseconds*/),
@@ -553,6 +561,16 @@ public class NativeFunctionSignatureBuilder {
 
         addStaticVarSig(MATH_MAX, OptionalParameters.Number);
         addStaticVarSig(MATH_MIN, OptionalParameters.Number);
+
+        addStaticVarSig(PROMISE_RACE, OptionalParameters.DontCare);
+        addStaticSig(PROMISE_RESOLVE, OptionalParameters.DontCare);
+        addStaticSig(PROMISE_REJECT, OptionalParameters.DontCare);
+        addSig(PROMISE_THEN, Receivers.Promise, OptionalParameters.DontCare,
+               OptionalParameters.DontCare);
+        addSig(PROMISE_CATCH, Receivers.Promise, OptionalParameters.DontCare);
+
+        addStaticVarSig(SET_TIMEOUT, MandatoryParameters.Function,
+                        OptionalParameters.DontCare);
 
         // GLOBAL FUNCTIONS
         addStaticSig(ALERT, MandatoryParameters.DontCare);

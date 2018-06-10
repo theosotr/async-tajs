@@ -1,0 +1,20 @@
+test-resources/src/async/test30.js:15:13: [definite] Dead assignment, property then is never read
+test-resources/src/async/test30.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test30.js:16:17: [info] Abstract value: "thenable exec"
+test-resources/src/async/test30.js:37:9: [info] Abstract value: "baz"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"fun1-27[Q=[@Promise#node12], R=[@Promise#node18]]" -> "fun2-5[Q=[@Promise#node44], R=[@Promise#node47]]";
+"fun1-27[Q=[@Promise#node12], R=[@Promise#node18]]" -> "fun4-15[Q=[@Object#node54], R=[@Promise#node57]]";
+"fun2-5[Q=[@Promise#node44], R=[@Promise#node47]]" -> "fun3-9[Q=[@Promise#node47], R=[@Promise#node50]]";
+"fun2-5[Q=[@Promise#node44], R=[@Promise#node47]]" -> "fun5-31[Q=[@Promise#node18], R=[@Promise#node21]]";
+"fun3-9[Q=[@Promise#node47], R=[@Promise#node50]]" -> "on_fulfill[@3]";
+"fun3-9[Q=[@Promise#node47], R=[@Promise#node50]]" -> "on_reject[@3]";
+"fun4-15[Q=[@Object#node54], R=[@Promise#node57]]" -> "fun3-9[Q=[@Promise#node47], R=[@Promise#node50]]";
+"fun4-15[Q=[@Object#node54], R=[@Promise#node57]]" -> "fun5-31[Q=[@Promise#node18], R=[@Promise#node21]]";
+"fun5-31[Q=[@Promise#node18], R=[@Promise#node21]]" -> "on_fulfill[@3]";
+"fun7-35[Q=[@Promise#node21], R=[@Promise#node24]]";
+"on_fulfill[@3]";
+"on_reject[@3]" -> "fun7-35[Q=[@Promise#node21], R=[@Promise#node24]]";
+}

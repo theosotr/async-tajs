@@ -104,6 +104,11 @@ public class TypeofNode extends LoadNode {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (varname == null && arg_reg == NO_VALUE)
             throw new AnalysisException("No variable name and no argument register: " + toString());

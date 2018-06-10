@@ -1,0 +1,4 @@
+test-resources/src/async/test03.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test03.js:11:22: [definite] The variable res is never used
+test-resources/src/async/test03.js:6:1: [info] Abstract value: [@resolve[internal]]
+test-resources/src/async/test03.js:15:1: [info] Abstract value: [@reject[internal]]

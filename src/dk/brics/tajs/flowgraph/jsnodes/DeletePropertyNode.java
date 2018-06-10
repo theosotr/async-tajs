@@ -129,6 +129,11 @@ public class DeletePropertyNode extends LoadNode {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (property_reg == NO_VALUE && property_str == null && (varname == null || varname.isEmpty()))
             throw new AnalysisException("Property register, property string and variable name are all undefined: " + toString());

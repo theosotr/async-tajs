@@ -49,6 +49,12 @@ import static dk.brics.tajs.util.Collections.newSet;
  */
 public class OptionValues {
 
+    @Option(name = "-no-qr-sensitivity", usage = "Disable QR-sensitivity")
+    private boolean noQRSensitivity;
+
+    @Option(name = "-callback-parameter-sensitivity", usage = "Enable parameter-sensitivity for callbacks")
+    private boolean clbParamterSensitivity;
+
     @Option(name = "-no-control-sensitivity", usage = "Disable control sensitivity")
     private boolean noControlSensitivity;
 
@@ -254,6 +260,24 @@ public class OptionValues {
     @Option(name = "-nodejs", usage = "Use Node.js environment for analysis and soundness testing (currently only 'require' is supported)")
     private boolean nodejs;
 
+    @Option(name = "-no-callback-sensitivity", usage = "Disable callback-sensitivity of event loop callbacks")
+    private boolean noCallbackSensitivity;
+
+    @Option(name = "-callback-graph-statistics", usage = "Print statistics about callback graph")
+    private boolean callbackGraphStats;
+
+    @Option(name = "-n-allocations", usage = "Specify the number of allocations to keep track")
+    private int allocationsNumber = 10;
+
+    @Option(name = "-print-callback-graph", usage = "Prints callback graph")
+    private boolean printCallbackGraph;
+
+    @Option(name = "-list-bounded-size", usage = "The bounded size of the lists")
+    private int boundedSize = 100;
+
+    @Option(name = "-no-heap-sensitivity", usage = "Disable heap sensitivity")
+    private boolean noHeapSensitivity;
+
     @Argument
     private List<Path> arguments = new ArrayList<>();
 
@@ -271,6 +295,8 @@ public class OptionValues {
 
         OptionValues that = (OptionValues) o;
 
+        if (noHeapSensitivity != that.noHeapSensitivity) return false;
+        if (noQRSensitivity != that.noQRSensitivity) return false;
         if (noControlSensitivity != that.noControlSensitivity) return false;
         if (noObjectSensitivity != that.noObjectSensitivity) return false;
         if (noRecency != that.noRecency) return false;
@@ -310,6 +336,7 @@ public class OptionValues {
         if (ajaxReturnsJson != that.ajaxReturnsJson) return false;
         if (contextSensitiveHeap != that.contextSensitiveHeap) return false;
         if (parameterSensitivity != that.parameterSensitivity) return false;
+        if (clbParamterSensitivity != that.clbParamterSensitivity) return false;
         if (ignoreUnreachable != that.ignoreUnreachable) return false;
         if (loopUnrollings != that.loopUnrollings) return false;
         if (determinacy != that.determinacy) return false;
@@ -328,6 +355,10 @@ public class OptionValues {
         if (specializeAllBoxedPrimitives != that.specializeAllBoxedPrimitives) return false;
         if (analysisTimeLimit != that.analysisTimeLimit) return false;
         if (doNotExpectOrdinaryExit != that.doNotExpectOrdinaryExit) return false;
+        if (noCallbackSensitivity != that.noCallbackSensitivity) return false;
+        if (printCallbackGraph != that.printCallbackGraph) return false;
+        if (boundedSize != that.boundedSize) return false;
+        if (callbackGraphStats != that.callbackGraphStats) return false;
         if (inspector != that.inspector) return false;
         if (unsoundnessString != null ? !unsoundnessString.equals(that.unsoundnessString) : that.unsoundnessString != null)
             return false;
@@ -346,6 +377,8 @@ public class OptionValues {
     @Override
     public int hashCode() {
         int result = (noControlSensitivity ? 1 : 0);
+        result = 31 * result + (noHeapSensitivity ? 1 : 0);
+        result = 31 * result + (noQRSensitivity ? 1 : 0);
         result = 31 * result + (noObjectSensitivity ? 1 : 0);
         result = 31 * result + (noRecency ? 1 : 0);
         result = 31 * result + (noModified ? 1 : 0);
@@ -388,6 +421,7 @@ public class OptionValues {
         result = 31 * result + (ignoredLibraries != null ? ignoredLibraries.hashCode() : 0);
         result = 31 * result + (contextSensitiveHeap ? 1 : 0);
         result = 31 * result + (parameterSensitivity ? 1 : 0);
+        result = 31 * result + (clbParamterSensitivity ? 1: 0);
         result = 31 * result + (ignoreUnreachable ? 1 : 0);
         result = 31 * result + loopUnrollings;
         result = 31 * result + (determinacy ? 1 : 0);
@@ -410,6 +444,10 @@ public class OptionValues {
         result = 31 * result + (doNotExpectOrdinaryExit ? 1 : 0);
         result = 31 * result + (inspector ? 1 : 0);
         result = 31 * result + (arguments != null ? arguments.hashCode() : 0);
+        result = 31 * result + (noCallbackSensitivity ? 1 : 0);
+        result = 31 * result + (callbackGraphStats ? 1 : 0);
+        result = 31 * result + (printCallbackGraph ? 1 : 0);
+        result = 31 * result + boundedSize;
         result = 31 * result + (soundnessTesterOptions != null ? soundnessTesterOptions.hashCode() : 0);
         return result;
     }
@@ -1238,5 +1276,85 @@ public class OptionValues {
 
     public void disableNodeJS() {
         nodejs = false;
+    }
+
+    public boolean isCallbackSensitivityDisabled() {
+        return noCallbackSensitivity;
+    }
+
+    public void enableCallbackSensitivity() {
+        this.noCallbackSensitivity = false;
+    }
+
+    public void disableCallbackSensitivity() {
+        this.noCallbackSensitivity = true;
+    }
+
+    public boolean isCallbackGraphStatsEnabled() {
+        return this.callbackGraphStats;
+    }
+
+    public void enableCallbackGraphStats() {
+        this.callbackGraphStats = true;
+    }
+
+    public void disableCallbackGraphStats() {
+        this.callbackGraphStats = false;
+    }
+
+    public int getAllocationsNumber() {
+        return this.allocationsNumber;
+    }
+
+    public void enableQRSensitivity() {
+        this.noQRSensitivity = false;
+    }
+
+    public void disableQRSensitivity() {
+        this.noQRSensitivity = true;
+    }
+
+    public boolean isQRSensitivityDisabled() {
+        return this.noQRSensitivity;
+    }
+
+    public void enableCallbackParameterSensitivity() {
+        this.clbParamterSensitivity = true;
+    }
+
+    public void disableCallbackParameterSensitivity() {
+        this.clbParamterSensitivity = false;
+    }
+
+    public boolean isCallbackParameterSensitivityEnabled() {
+        return this.clbParamterSensitivity;
+    }
+
+    public void enableCallbackGraphPrint() {
+        this.printCallbackGraph = true;
+    }
+
+    public void disableCallbackGraphPrint() {
+        this.printCallbackGraph = false;
+    }
+
+    public int getBoundedSize() {
+        return this.boundedSize;
+    }
+
+    public void enableHeapSensitivity() {
+        this.noHeapSensitivity = false;
+    }
+
+    public void disableHeapSensitivity() {
+        this.noHeapSensitivity = true;
+    }
+
+    public boolean isHeapSensitivityEnabled() {
+        return !this.noHeapSensitivity;
+    }
+
+    public boolean isCallbackGraphPrintEnabled() {
+        return this.printCallbackGraph;
     }
 }

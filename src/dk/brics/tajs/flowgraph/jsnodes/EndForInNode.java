@@ -66,6 +66,11 @@ public class EndForInNode extends Node {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public String toString() {
         return "end-for-in(begin-node:" + begin_node.getIndex() + ")";
     }

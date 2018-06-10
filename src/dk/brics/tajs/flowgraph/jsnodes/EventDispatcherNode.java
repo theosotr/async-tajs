@@ -83,6 +83,11 @@ public class EventDispatcherNode extends Node {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return true;
+    }
+
+    @Override
     public String toString() {
         return "event-dispatcher <" + type.name().replace("DOM_", "") + ">";
     }

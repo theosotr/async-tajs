@@ -1,0 +1,11 @@
+test-resources/src/async/test22.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test22.js:23:7: [info] Abstract value: "exceptional path printed"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-15[]" -> "foo-1[]";
+"ff2-20[]";
+"ff3-22[]";
+"foo-1[]" -> "ff2-20[]";
+"foo-1[]" -> "ff3-22[]";
+}

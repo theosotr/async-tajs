@@ -43,6 +43,7 @@ import dk.brics.tajs.options.ExperimentalOptions;
 import dk.brics.tajs.options.OptionValues;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.options.TAJSEnvironmentConfig;
+import dk.brics.tajs.solver.CallbackGraph;
 import dk.brics.tajs.solver.SolverSynchronizer;
 import dk.brics.tajs.util.AnalysisException;
 import dk.brics.tajs.util.Canonicalizer;
@@ -299,6 +300,16 @@ public class Main {
         long elapsed = System.currentTimeMillis() - time;
         if (Options.get().isTimingEnabled())
             log.info("Analysis finished in " + elapsed + "ms");
+
+        if (Options.get().isCallbackGraphStatsEnabled()) {
+            CallbackGraph callbackGraph = analysis.getSolver()
+                    .getAnalysisLatticeElement().getCallbackGraph();
+            Double precision = callbackGraph.precision();
+            log.info("Callback graph precision: " +
+                    (precision == null ? "N/A" : precision));
+            Integer callbacks = callbackGraph.countCallbacksExecuted();
+            log.info("Callbacks executed: " + callbacks);
+        }
 
         if (Options.get().isFlowGraphEnabled())
             dumpFlowGraph(analysis.getSolver().getFlowGraph(), true);

@@ -1,0 +1,13 @@
+test-resources/src/async/test17.js:11:9: [definite] The conditional expression is always true
+test-resources/src/async/test17.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test17.js:6:5: [definite] The variable reject is never used
+test-resources/src/async/test17.js:14:17: [definite] The variable reason is never used
+test-resources/src/async/test17.js:35:16: [definite] Unreachable function ff2
+test-resources/src/async/test17.js:33:13: [info] Abstract value: 10.0
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-30[Q=[@Promise#node68], R=[@Promise#node71]]" -> "on_fulfill[@2]";
+"on_fulfill[@2]";
+"showOff-21[Q=[@Promise#node13], R=[@Promise#node68]]" -> "ff1-30[Q=[@Promise#node68], R=[@Promise#node71]]";
+}

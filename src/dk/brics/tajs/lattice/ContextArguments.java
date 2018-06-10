@@ -43,12 +43,18 @@ public class ContextArguments {// TODO: canonicalize? (#140)
 
     private final List<Value> arguments;
 
-    private ContextArguments(Value unknownArg, List<String> parameterNames, List<Value> arguments, Map<String, Value> selectedClosureVariables) { // TODO: review, compare with 19b80eac3
+    private final Value queueObjValue;
+
+    private ContextArguments(Value unknownArg, List<String> parameterNames,
+                             List<Value> arguments,
+                             Map<String, Value> selectedClosureVariables,
+                             Value queueObjValue) { // TODO: review, compare with 19b80eac3
         List<String> relevantParameterNames = parameterNames != null ? parameterNames.subList(0, arguments == null ? 0 : Math.min(parameterNames.size(), arguments.size())) : null;
         this.unknownArg = unknownArg;
         this.arguments = arguments == null || arguments.isEmpty() ? null : arguments;
         this.parameterNames = relevantParameterNames == null || relevantParameterNames.isEmpty() ? null : parameterNames;
         this.selectedClosureVariables = selectedClosureVariables == null || selectedClosureVariables.isEmpty() ? null : selectedClosureVariables;
+        this.queueObjValue = queueObjValue;
         if (Options.get().isDebugOrTestEnabled()) {
             if ((this.arguments != null && this.arguments.stream().anyMatch(a -> a != null && a.isPolymorphicOrUnknown())) || (this.selectedClosureVariables != null && this.selectedClosureVariables.values().stream().anyMatch(a -> a != null && a.isPolymorphicOrUnknown()))) {
                 throw new AnalysisException("Attempting to be context sensitive in polymorphic or unknown value");
@@ -61,7 +67,7 @@ public class ContextArguments {// TODO: canonicalize? (#140)
      * @param unknownArg all the arguments in a single value
      */
     public ContextArguments(Value unknownArg, Map<String, Value> selectedClosureVariables) {
-        this(unknownArg, null, null, selectedClosureVariables);
+        this(unknownArg, null, null, selectedClosureVariables, null);
     }
 
     /**
@@ -72,7 +78,13 @@ public class ContextArguments {// TODO: canonicalize? (#140)
      * @param selectedClosureVariables as the values of closure-variables
      */
     public ContextArguments(List<String> parameterNames, List<Value> arguments, Map<String, Value> selectedClosureVariables) {
-        this(null, parameterNames, arguments, selectedClosureVariables);
+        this(null, parameterNames, arguments, selectedClosureVariables, null);
+    }
+
+    public ContextArguments(List<String> parameterNames, List<Value> arguments, Map<String,
+                            Value> selectedClosureVariables, Value queueObjValue) {
+        this(null, parameterNames, arguments, selectedClosureVariables,
+             queueObjValue);
     }
 
     /**
@@ -123,6 +135,7 @@ public class ContextArguments {// TODO: canonicalize? (#140)
         ContextArguments that = (ContextArguments) o;
 
         if (unknownArg != null ? !unknownArg.equals(that.unknownArg) : that.unknownArg != null) return false;
+        if (queueObjValue != null ? !queueObjValue.equals(that.queueObjValue) : that.queueObjValue != null) return false;
         if (selectedClosureVariables != null ? !selectedClosureVariables.equals(that.selectedClosureVariables) : that.selectedClosureVariables != null)
             return false;
         if (parameterNames != null ? !parameterNames.equals(that.parameterNames) : that.parameterNames != null)
@@ -133,6 +146,7 @@ public class ContextArguments {// TODO: canonicalize? (#140)
     @Override
     public int hashCode() {
         int result = unknownArg != null ? unknownArg.hashCode() : 0;
+        result = 31 * result + (queueObjValue != null ? queueObjValue.hashCode() : 0);
         result = 31 * result + (selectedClosureVariables != null ? selectedClosureVariables.hashCode() : 0);
         result = 31 * result + (parameterNames != null ? parameterNames.hashCode() : 0);
         result = 31 * result + (arguments != null ? arguments.hashCode() : 0);

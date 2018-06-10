@@ -216,6 +216,18 @@ public enum ECMAScriptObjects implements HostObject {
     DATE_SETYEAR("Date.prototype.setYear"),
     DATE_TOGMTSTRING("Date.prototype.toGMTString"),
 
+    PROMISE("Promise"),
+    PROMISE_PROTOTYPE("Promise.prototype"),
+    PROMISE_ALL("Promise.all"),
+    PROMISE_RACE("Promise.race"),
+    PROMISE_RESOLVE("Promise.resolve"),
+    PROMISE_REJECT("Promise.reject"),
+    PROMISE_THEN("Promise.prototype.then"),
+    PROMISE_CATCH("Promise.prototype.catch"),
+    PROMISE_FINALLY("Promise.prototype.finally"),
+
+    SET_TIMEOUT("setTimeout"),
+
     PROXY("Proxy"),
     PROXY_PROTOTYPE("Proxy.prototype"),
     PROXY_TOSTRING("Proxy.prototype.toString"),
@@ -270,6 +282,8 @@ public enum ECMAScriptObjects implements HostObject {
     JSON_OBJECT("JSONObject"),
     JSON_PARSE("JSON.parse"),
     JSON_STRINGIFY("JSON.stringify"),
+
+    ASYNC_IO("<Async I/O>"),
 
     EVAL("eval"),
     PARSEINT("parseInt"),

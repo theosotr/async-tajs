@@ -26,6 +26,7 @@ import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.util.AnalysisException;
 
+
 import static dk.brics.tajs.util.Collections.newSet;
 
 /**
@@ -82,6 +83,14 @@ public class Exceptions {
             return;
         c.withState(c.getState().clone(), () ->
                 throwException(c.getState(), makeException(InitialStateBuilder.SYNTAX_ERROR_PROTOTYPE, c), c, c.getNode()));
+    }
+
+    public static Value makeTypeError(Solver.SolverInterface c) {
+        return makeException(InitialStateBuilder.TYPE_ERROR_PROTOTYPE, c);
+    }
+
+    public static Value makeGenericError(Solver.SolverInterface c) {
+        return makeException(InitialStateBuilder.ERROR_PROTOTYPE, c);
     }
 
     /**

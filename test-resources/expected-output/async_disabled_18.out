@@ -1,0 +1,20 @@
+test-resources/src/async/test30.js:15:13: [definite] Dead assignment, property then is never read
+test-resources/src/async/test30.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test30.js:16:17: [info] Abstract value: "thenable exec"
+test-resources/src/async/test30.js:37:9: [info] Abstract value: "baz"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"fun1-27[]" -> "fun2-5[]";
+"fun1-27[]" -> "fun4-15[]";
+"fun2-5[]" -> "fun3-9[]";
+"fun2-5[]" -> "fun5-31[]";
+"fun3-9[]" -> "on_fulfill[@3]";
+"fun3-9[]" -> "on_reject[@3]";
+"fun4-15[]" -> "fun3-9[]";
+"fun4-15[]" -> "fun5-31[]";
+"fun5-31[]" -> "on_fulfill[@3]";
+"fun7-35[]";
+"on_fulfill[@3]";
+"on_reject[@3]" -> "fun7-35[]";
+}

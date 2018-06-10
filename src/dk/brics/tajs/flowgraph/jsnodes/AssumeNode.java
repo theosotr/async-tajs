@@ -157,6 +157,11 @@ public class AssumeNode extends Node {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (kind == Kind.VARIABLE_NON_NULL_UNDEF && varname == null)
             throw new AnalysisException("Variable non null undef with null variable name: " + toString());

@@ -1,0 +1,23 @@
+test-resources/src/async/test07.js:22:9: [definite] TypeError, accessing property of null/undefined
+test-resources/src/async/test07.js:15:23: [definite] Variable param3 is null/undefined
+test-resources/src/async/test07.js:22:9: [definite] Reading absent property foo
+test-resources/src/async/test07.js:24:12: [definite] Dead assignment, property bar is never read
+test-resources/src/async/test07.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test07.js:23:24: [definite] Unreachable code
+test-resources/src/async/test07.js:8:1: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test07.js:8:1: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[{this: @<the global object>[native], queueObj: @setTimeout[native], callback: [@foo#fun1](), implicit: false}]
+onReject:	[]
+test-resources/src/async/test07.js:25:5: [info] Abstract value: "should be printed"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-12[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "lala-21[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"baz-20[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "lala-21[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"foo-2[Q=[@setTimeout[native]], R=[@setTimeout[native]]]" -> "lala-21[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+"lala-21[Q=[@setTimeout[native]], R=[@setTimeout[native]]]";
+}

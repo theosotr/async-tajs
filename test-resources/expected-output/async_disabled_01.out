@@ -1,0 +1,40 @@
+test-resources/src/async/test04.js:8:6: [definite] Dead assignment, property then is never read
+test-resources/src/async/test04.js:16:5: [definite] Dead assignment, property then is never read
+test-resources/src/async/test04.js:40:5: [definite] Dead assignment, property then is never read
+test-resources/src/async/test04.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test04.js:33:9: [definite] Unreachable function ff2
+test-resources/src/async/test04.js:42:24: [definite] Unreachable code
+test-resources/src/async/test04.js:18:9: [info] Abstract value: [@resolve[internal]]
+test-resources/src/async/test04.js:19:9: [info] Abstract value: [@reject[internal]]
+test-resources/src/async/test04.js:29:1: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test04.js:29:1: [info] Queue object: @Object#node29 ==>
+State:	[FULFILLED - None]
+onResolve:	[{this: @Object#node29, queueObj: @Promise#node35, callback: [@ff1#fun3]([@resolve[internal]], [@reject[internal]]), implicit: false}]
+onReject:	[]
+test-resources/src/async/test04.js:29:1: [info] Queue object: @Promise#node13 ==>
+State:	[FULFILLED - [@Object#node9]]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test04.js:29:1: [info] Queue object: @Promise#node24 ==>
+State:	[FULFILLED - [@Object#node18]]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test04.js:29:1: [info] Queue object: @Promise#node35 ==>
+State:	[PENDING - None]
+onResolve:	[]
+onReject:	[]
+Dependent on:	@[@Object#node29]
+test-resources/src/async/test04.js:29:1: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-16[]" -> "ff3-40[]";
+"ff3-40[]" -> "ff4-49[]";
+"ff4-49[]";
+}

@@ -971,7 +971,7 @@ public class NodeTransfer implements NodeVisitor {
                     State nonSpecializedMergeState = c.getState().clone();
                     Value returnValue = c.getState().hasReturnRegisterValue() ? c.getState().readRegister(AbstractNode.RETURN_REG) : null;
                     Value exValue = c.getState().hasExceptionRegisterValue() ? c.getState().readRegister(AbstractNode.EXCEPTION_REG) : null;
-                    returnValue = UserFunctionCalls.mergeFunctionReturn(nonSpecializedMergeState, beginState, edgeState, beginEntryState, nonSpecializedMergeState.getSummarized(), returnValue, exValue);
+                    returnValue = UserFunctionCalls.mergeFunctionReturn(nonSpecializedMergeState, beginState, edgeState, beginEntryState, nonSpecializedMergeState.getSummarized(), returnValue, exValue, n.getBlock().getFunction());
                     if (returnValue != null) {
                         nonSpecializedMergeState.writeRegister(AbstractNode.RETURN_REG, returnValue);
                     }

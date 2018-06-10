@@ -1,0 +1,16 @@
+test-resources/src/async/test16.js:20:10: [definite] Dead assignment, property foo is never read
+test-resources/src/async/test16.js:20:16: [definite] Dead assignment, property bar is never read
+test-resources/src/async/test16.js:24:5: [definite] Reading absent property bar
+test-resources/src/async/test16.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test16.js:24:5: [maybe] Converting primitive number to object
+test-resources/src/async/test16.js:13:5: [info] Abstract value: "should be printed"
+test-resources/src/async/test16.js:23:5: [info] Abstract value: [@Object#node77]
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"bar-8[]" -> "la-19[]";
+"baz-17[]" -> "lala-22[]";
+"foo-6[]" -> "baz-17[]";
+"la-19[]";
+"lala-22[]" -> "bar-8[]";
+}

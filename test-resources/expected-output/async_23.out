@@ -1,0 +1,50 @@
+test-resources/src/async/test23.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test23.js:13:5: [definite] The variable x is never used
+test-resources/src/async/test23.js:14:1: [info] Queue object: *Promise#node37 ==>
+State:	[FULFILLED - "bar"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:14:1: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:14:1: [info] Queue object: @Promise#node37 ==>
+State:	[FULFILLED - "bar"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:14:1: [info] Queue object: @Promise#node37 ==>
+State:	[REJECTED - "foo"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:14:1: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:22:1: [info] Queue object: *Promise#node37 ==>
+State:	[FULFILLED - "bar"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:22:1: [info] Queue object: *Promise#node56 ==>
+State:	[FULFILLED - "foo"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:22:1: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:22:1: [info] Queue object: @Promise#node37 ==>
+State:	[FULFILLED - "bar"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:22:1: [info] Queue object: @Promise#node37 ==>
+State:	[REJECTED - "foo"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:22:1: [info] Queue object: @Promise#node56 ==>
+State:	[FULFILLED - IdentStr]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test23.js:22:1: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]

@@ -16,6 +16,7 @@
 
 package dk.brics.tajs.monitoring;
 
+import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
@@ -80,6 +81,12 @@ public class CompositeMonitoring implements IAnalysisMonitoring {
             return head;
         }
         return f.build(head, buildFromList(monitors, f));
+    }
+
+    @Override
+    public void addMessage(AbstractNode n, Message.Status status, Message.Severity severity, String msg) {
+        m1.addMessage(n, status, severity, msg);
+        m2.addMessage(n, status, severity, msg);
     }
 
     @Override
@@ -319,6 +326,24 @@ public class CompositeMonitoring implements IAnalysisMonitoring {
     public void visitEventHandlerRegistration(AbstractNode node, Context context, Value handler) {
         m1.visitEventHandlerRegistration(node, context, handler);
         m2.visitEventHandlerRegistration(node, context, handler);
+    }
+
+    @Override
+    public void visitPromiseCall(AbstractNode node, FunctionCalls.CallInfo call) {
+        m1.visitPromiseCall(node, call);
+        m2.visitPromiseCall(node, call);
+    }
+
+    @Override
+    public void visitPromiseExecutor(AbstractNode node, Value executor) {
+        m1.visitPromiseExecutor(node, executor);
+        m2.visitPromiseExecutor(node, executor);
+    }
+
+    @Override
+    public void visitPromiseResolve(AbstractNode node, ObjectLabel promise, Value resolvedValue) {
+        m1.visitPromiseResolve(node, promise, resolvedValue);
+        m2.visitPromiseResolve(node, promise, resolvedValue);
     }
 
     @Override

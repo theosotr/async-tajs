@@ -1,0 +1,59 @@
+build/hostenv/nodejs/modules/fs.js:42:1: [definite] Dead assignment, property isDirectory is never read
+build/hostenv/nodejs/modules/fs.js:46:1: [definite] Dead assignment, property isSymbolicLink is never read
+build/hostenv/nodejs/modules/fs.js:214:5: [definite] Dead assignment, property access is never read
+build/hostenv/nodejs/modules/fs.js:215:5: [definite] Dead assignment, property close is never read
+build/hostenv/nodejs/modules/fs.js:216:5: [definite] Dead assignment, property lstat is never read
+build/hostenv/nodejs/modules/fs.js:217:5: [definite] Dead assignment, property open is never read
+build/hostenv/nodejs/modules/fs.js:219:5: [definite] Dead assignment, property readdir is never read
+build/hostenv/nodejs/modules/fs.js:220:5: [definite] Dead assignment, property realpath is never read
+build/hostenv/nodejs/modules/fs.js:221:5: [definite] Dead assignment, property stat is never read
+build/hostenv/nodejs/modules/fs.js:222:5: [definite] Dead assignment, property watch is never read
+build/hostenv/nodejs/modules/fs.js:223:5: [definite] Dead assignment, property watchFile is never read
+build/hostenv/nodejs/modules/fs.js:224:5: [definite] Dead assignment, property unwatchFile is never read
+build/hostenv/nodejs/modules/fs.js:226:5: [definite] Dead assignment, property Stats is never read
+build/hostenv/nodejs/modules/fs.js:228:5: [definite] Dead assignment, property lstatSync is never read
+build/hostenv/nodejs/modules/fs.js:229:5: [definite] Dead assignment, property readdirSync is never read
+build/hostenv/nodejs/modules/fs.js:230:5: [definite] Dead assignment, property realpathSync is never read
+build/hostenv/nodejs/modules/fs.js:231:5: [definite] Dead assignment, property statSync is never read
+build/hostenv/nodejs/modules/fs.js:1:1: [definite] The variable __dirname is never used
+build/hostenv/nodejs/modules/fs.js:1:1: [definite] The variable __filename is never used
+build/hostenv/nodejs/modules/fs.js:1:1: [definite] The variable exports is never used
+build/hostenv/nodejs/modules/fs.js:1:1: [definite] The variable require is never used
+build/hostenv/nodejs/modules/fs.js:1:1: [definite] Unreachable function Stats
+build/hostenv/nodejs/modules/fs.js:42:31: [definite] Unreachable function
+build/hostenv/nodejs/modules/fs.js:46:34: [definite] Unreachable function
+build/hostenv/nodejs/modules/fs.js:51:1: [definite] Unreachable function access
+build/hostenv/nodejs/modules/fs.js:58:1: [definite] Unreachable function close
+build/hostenv/nodejs/modules/fs.js:65:1: [definite] Unreachable function open
+build/hostenv/nodejs/modules/fs.js:73:1: [definite] Unreachable function readdir
+build/hostenv/nodejs/modules/fs.js:81:1: [definite] The variable filename is never used
+build/hostenv/nodejs/modules/fs.js:81:1: [definite] The variable options is never used
+build/hostenv/nodejs/modules/fs.js:89:1: [definite] Unreachable function realPath
+build/hostenv/nodejs/modules/fs.js:97:1: [definite] Unreachable function stat
+build/hostenv/nodejs/modules/fs.js:124:1: [definite] Unreachable function watch
+build/hostenv/nodejs/modules/fs.js:132:1: [definite] Unreachable function watchFile
+build/hostenv/nodejs/modules/fs.js:176:1: [definite] Unreachable function unwatchFile
+build/hostenv/nodejs/modules/fs.js:180:1: [definite] Unreachable function readdirSync
+build/hostenv/nodejs/modules/fs.js:185:1: [definite] Unreachable function realpathSync
+build/hostenv/nodejs/modules/fs.js:190:1: [definite] Unreachable function statSync
+test-resources/src/async/test21.js:1:1: [definite] The variable __dirname is never used
+test-resources/src/async/test21.js:1:1: [definite] The variable __filename is never used
+test-resources/src/async/test21.js:1:1: [definite] The variable exports is never used
+test-resources/src/async/test21.js:1:1: [definite] The variable module is never used
+test-resources/src/async/test21.js:23:9: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test21.js:26:15: [maybe] TypeError, accessing property of null/undefined
+test-resources/src/async/test21.js: [maybe] Uncaught exception, constructed at [HOST(/home/thodoris/projects/TAJS/build/hostenv/nodejs/simple-require.js):28:9, HOST(/home/thodoris/projects/TAJS/build/hostenv/nodejs/simple-require.js):30:13]
+test-resources/src/async/test21.js:6:5: [info] Abstract value: "executed"
+test-resources/src/async/test21.js:8:9: [info] Abstract value: "erroneous path"
+test-resources/src/async/test21.js:10:9: [info] Abstract value: "correct path"
+test-resources/src/async/test21.js:12:5: [info] Abstract value: Undef|[@Error#node980]
+test-resources/src/async/test21.js:13:5: [info] Abstract value: Undef|Str
+test-resources/src/async/test21.js:16:13: [info] Abstract value: "erroneous path"
+test-resources/src/async/test21.js:18:13: [info] Abstract value: "correct path"
+test-resources/src/async/test21.js:20:9: [info] Abstract value: Undef|[@Error#node980]
+test-resources/src/async/test21.js:21:9: [info] Abstract value: Undef|Str
+test-resources/src/async/test21.js:22:9: [info] Abstract value: "executed nested"
+test-resources/src/async/test21.js:24:9: [info] Abstract value: "printed"
+test-resources/src/async/test21.js:27:5: [info] Abstract value: "printed"
+test-resources/src/async/test21.js:33:5: [info] Abstract value: Undef|[@Error#node980]
+test-resources/src/async/test21.js:34:5: [info] Abstract value: Undef|Str

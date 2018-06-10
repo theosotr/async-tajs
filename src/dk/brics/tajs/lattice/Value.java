@@ -2873,6 +2873,66 @@ public final class Value implements Undef, Null, Bool, Num, Str, PKeys, DeepImmu
         return canonicalize(r);
     }
 
+    public boolean isMaybePromise() {
+        checkNotPolymorphicOrUnknown();
+        return object_labels != null && object_labels.stream().anyMatch(
+                (x) -> x.getKind() == Kind.PROMISE);
+    }
+
+    public boolean isMaybeFunction() {
+        checkNotPolymorphicOrUnknown();
+        return object_labels != null && object_labels.stream().anyMatch(
+                (x) -> x.getKind() == Kind.FUNCTION);
+    }
+
+    public boolean isMaybeArray() {
+        checkNotPolymorphicOrUnknown();
+        return object_labels != null && object_labels.stream().anyMatch(
+                (x) -> x.getKind() == Kind.ARRAY);
+    }
+
+    public boolean isMaybeNonObject() {
+        return isNone()
+                || isMaybeUndef()
+                || isMaybeNull()
+                || isMaybePrimitiveOrSymbol();
+    }
+
+    public boolean isMaybeNonFunction() {
+        checkNotPolymorphicOrUnknown();
+        return isMaybeNonObject()
+                || (object_labels == null) || object_labels.stream().anyMatch(
+                (x) -> x.getKind() != Kind.FUNCTION);
+    }
+
+    public boolean isMaybeNonPromise() {
+        return isMaybeNonObject()
+                || (object_labels == null) || object_labels.stream().anyMatch(
+                (x) -> x.getKind() != Kind.PROMISE);
+    }
+
+    public boolean isMaybeNonArray() {
+        return isMaybeNonObject()
+                || (object_labels == null) || object_labels.stream().anyMatch(
+                (x) -> x.getKind() != Kind.ARRAY);
+    }
+
+    private Set<ObjectLabel> excludeObjLabels(Kind kind, boolean eq) {
+        Set<ObjectLabel> objectLabels = newSet();
+        if (object_labels != null)
+            for (ObjectLabel objlabel : object_labels)
+                if (eq) {
+                    if (objlabel.getKind() == kind
+                            && objlabel.getKind() != Kind.SYMBOL)
+                        objectLabels.add(objlabel);
+                } else {
+                    if (objlabel.getKind() != kind
+                            && objlabel.getKind() != Kind.SYMBOL)
+                        objectLabels.add(objlabel);
+                }
+        return objectLabels;
+    }
+
     /**
      * Constructs a value as a copy of this value but only with object values. (Symbols are not objects.)
      */
@@ -2885,14 +2945,41 @@ public final class Value implements Undef, Null, Bool, Num, Str, PKeys, DeepImmu
         r.num = null;
         r.str = null;
         r.getters = r.setters = null;
-        r.object_labels = newSet();
-        if (object_labels != null)
-            for (ObjectLabel objlabel : object_labels)
-                if (objlabel.getKind() != Kind.SYMBOL)
-                    r.object_labels.add(objlabel);
+        r.object_labels = excludeObjLabels(null, false);
         if (r.object_labels.isEmpty())
             r.object_labels = null;
         return canonicalize(r);
+    }
+
+    private Value restrictValue(Kind kind, boolean eq,
+                                boolean clearNonObj) {
+        Value r = new Value(this);
+        if (clearNonObj) {
+            r.flags &= ~PRIMITIVE;
+            r.num = null;
+            r.str = null;
+            r.getters = r.setters = null;
+        }
+        r.object_labels = excludeObjLabels(kind, eq);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
+        return canonicalize(r);
+    }
+
+    public Value restrictToNonPromises() {
+        return restrictValue(Kind.PROMISE, false, false);
+    }
+
+    public Value restrictToPromises() {
+        return restrictValue(Kind.PROMISE, true, true);
+    }
+
+    public Value restrictToArrays() {
+        return restrictValue(Kind.ARRAY, true, true);
+    }
+
+    public Value restrictToFunctions() {
+        return restrictValue(Kind.FUNCTION, true, true);
     }
 
     /**
@@ -3120,6 +3207,25 @@ public final class Value implements Undef, Null, Bool, Num, Str, PKeys, DeepImmu
         if (Options.get().isDebugOrTestEnabled())
             return Collections.unmodifiableSet(object_labels);
         return object_labels;
+    }
+
+    public ObjectLabel getObjectLabelUnique() {
+        if (this.object_labels.size() > 1)
+            throw new AnalysisException("Multiple object labels found on "
+                    + "value: " + this.toString());
+        if (this.object_labels.isEmpty())
+            throw new AnalysisException("No object label found");
+        return this.object_labels.iterator().next();
+    }
+
+    public Set<ObjectLabel> filterFunctionObjectLabels() {
+        if (this.object_labels == null)
+            return Collections.emptySet();
+        Set<ObjectLabel> objectLabels = newSet();
+        for (ObjectLabel objectLabel: this.object_labels)
+            if (objectLabel.getKind() == Kind.FUNCTION)
+                objectLabels.add(objectLabel);
+        return objectLabels;
     }
 
     /**

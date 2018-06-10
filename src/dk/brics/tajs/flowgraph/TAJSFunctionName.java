@@ -34,6 +34,7 @@ public enum TAJSFunctionName {
     TAJS_DUMPNF("dumpNF"),
     TAJS_DUMPOBJECT("dumpObject"),
     TAJS_DUMPPROTOTYPE("dumpPrototype"),
+    TAJS_DUMPQUEUE("dumpQueue"),
     TAJS_DUMPSTATE("dumpState"),
     TAJS_DUMPVALUE("dumpValue"),
 
@@ -62,7 +63,18 @@ public enum TAJSFunctionName {
     TAJS_LOAD_JSON("loadJSON"),
     TAJS_NODE_REQUIRE_RESOLVE("nodeRequireResolve"),
     TAJS_NODE_PARENT_DIR("parentDir"),
-    TAJS_NODE_UNURL("unURL");
+    TAJS_NODE_UNURL("unURL"),
+
+    TAJS_NOTINQUEUE("notInQueue"),
+    TAJS_PENDING("pending"),
+    TAJS_FULFILLEDWITH("fulfilledWith"),
+    TAJS_REJECTEDWITH("rejectedWith"),
+    TAJS_HASTIMERCALLBACK("hasTimerCallback"),
+
+    TAJS_ADDASYNCIOCALLBACK("addAsyncIOCallback"),
+    TAJS_MAKEGENERICERROR("makeGenericError"),
+
+    ;
 
     private String string;
 

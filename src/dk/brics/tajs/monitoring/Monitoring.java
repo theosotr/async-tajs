@@ -16,6 +16,7 @@
 
 package dk.brics.tajs.monitoring;
 
+import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.HostAPIs;
 import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.flowgraph.AbstractNode;
@@ -72,6 +73,7 @@ import dk.brics.tajs.monitoring.ObjReadsWrites.W_Status;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.solver.BlockAndContext;
 import dk.brics.tajs.solver.CallGraph;
+import dk.brics.tajs.solver.CallbackGraph;
 import dk.brics.tajs.solver.Message;
 import dk.brics.tajs.solver.Message.Severity;
 import dk.brics.tajs.solver.Message.Status;
@@ -258,6 +260,8 @@ public class Monitoring implements IAnalysisMonitoring {
      */
     private CallGraph<State, Context, CallEdge> callgraph;
 
+    private CallbackGraph callbackGraph;
+
     private final ReachabilityMonitor reachabilityMonitor;
 
     /**
@@ -367,6 +371,7 @@ public class Monitoring implements IAnalysisMonitoring {
     public void setSolverInterface(Solver.SolverInterface c) {
         flowgraph = c.getFlowGraph();
         callgraph = c.getAnalysisLatticeElement().getCallGraph();
+        callbackGraph = c.getAnalysisLatticeElement().getCallbackGraph();
     }
 
     /**
@@ -691,6 +696,21 @@ public class Monitoring implements IAnalysisMonitoring {
             try (FileWriter f = new FileWriter(filename)) {
                 log.info("Writing call graph to " + filename);
                 callgraph.toDot(new PrintWriter(f));
+            } catch (IOException e) {
+                log.error("Unable to write " + filename + ": " + e.getMessage());
+            }
+        }
+
+        if (Options.get().isCallbackGraphPrintEnabled()) {
+            File outdir = new File("out");
+            if (!outdir.exists()) {
+                outdir.mkdir();
+            }
+            String filename = "out" + File.separator + "callbackgraph.dot";
+            try (FileWriter f = new FileWriter(filename)) {
+                log.info("Writing callback graph to " + filename);
+                String text = callbackGraph.toDot(new PrintWriter(f));
+                log.info(text);
             } catch (IOException e) {
                 log.error("Unable to write " + filename + ": " + e.getMessage());
             }
@@ -1178,6 +1198,52 @@ public class Monitoring implements IAnalysisMonitoring {
         // ignore
     }
 
+    @Override
+    public void visitPromiseCall(AbstractNode node, FunctionCalls.CallInfo call) {
+        if (scan_phase && !call.isConstructorCall()) {
+            addMessage(node, Status.CERTAIN, Severity.HIGH,
+                      "Calling built-in Promise without new keyword");
+        }
+    }
+
+    @Override
+    public void visitPromiseExecutor(AbstractNode node, Value executor) {
+        if (!scan_phase) {
+            checkValueSuspicious(node, executor);
+            return;
+        }
+        boolean mayNotFunction = executor.isNone()
+                || executor.isMaybePrimitiveOrSymbol()
+                || executor.getObjectLabels().stream().anyMatch(
+                        objlabel -> objlabel.getKind() != Kind.FUNCTION);
+
+        boolean isFunction = executor.getObjectLabels().stream()
+                .anyMatch(objlabel -> objlabel.getKind() == Kind.FUNCTION);
+        Status status = mayNotFunction ?
+                (isFunction ? Status.MAYBE : Status.CERTAIN) : Status.NONE;
+
+        if (status != Status.NONE)
+            call_to_non_function.add(node);
+        addMessage(node, status, Severity.HIGH, "Promise executor is not a function");
+    }
+
+    @Override
+    public void visitPromiseResolve(AbstractNode node, ObjectLabel promise,
+                                    Value value) {
+        if (!scan_phase) {
+            checkValueSuspicious(node, value);
+            return;
+        }
+
+        boolean maybeSame = value.getObjectLabels().stream().anyMatch(
+                objectLabel -> objectLabel.equals(promise));
+        boolean isObj = !value.isNone() && !value.isMaybePrimitiveOrSymbol();
+        Status status = maybeSame ?
+                (isObj ? Status.CERTAIN : Status.MAYBE) : Status.NONE;
+
+        addMessage(node, status, Severity.HIGH, "Self promise resolution error");
+    }
+
     /**
      * Checks whether the function is invoked both as a constructor (with 'new') and as a function/method (without 'new').
      */
@@ -1472,12 +1538,13 @@ public class Monitoring implements IAnalysisMonitoring {
         addMessage(n, Status.MAYBE, severity, msg);
     }
 
+    @Override
     /**
      * Adds a message for the given node. If not in scan phase, nothing is done.
      * If the message already exists, the status is joined.
      * Uses the message as key (must be a fixed string).
      */
-    private void addMessage(AbstractNode n, Status s, Severity severity, String msg) { // TODO: collect all message generation in Monitoring? (then make addMessage private?)
+    public void addMessage(AbstractNode n, Status s, Severity severity, String msg) { // TODO: collect all message generation in Monitoring? (then make addMessage private?)
         addMessage(n, s, severity, msg, msg);
     }
 

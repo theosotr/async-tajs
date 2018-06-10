@@ -1,0 +1,23 @@
+test-resources/src/async/test13.js:12:27: [definite] Variable value is null/undefined
+test-resources/src/async/test13.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test13.js:9:14: [definite] Unreachable function ff2
+test-resources/src/async/test13.js:5:5: [info] Queue object: @<Async I/O>[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test13.js:5:5: [info] Queue object: @Promise#node23 ==>
+State:	[FULFILLED - "foo"]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test13.js:5:5: [info] Queue object: @setTimeout[native] ==>
+State:	[FULFILLED - None]
+onResolve:	[]
+onReject:	[]
+test-resources/src/async/test13.js:7:9: [info] Abstract value: "foo"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-6[]" -> "on_fulfill[@1]";
+"ff3-11[]";
+"on_fulfill[@1]" -> "ff3-11[]";
+}

@@ -57,6 +57,7 @@ public final class ObjectLabel implements Comparable<ObjectLabel>, DeepImmutable
         STRING("String"),
         NUMBER("Number"),
         BOOLEAN("Boolean"),
+        PROMISE("Promise"),
         ERROR("Error"),
         MATH("Math"),
         ACTIVATION("activation"),
@@ -152,6 +153,8 @@ public final class ObjectLabel implements Comparable<ObjectLabel>, DeepImmutable
      * number of concrete objects).
      */
     public static ObjectLabel make(Function f, HeapContext heapContext) {
+        if (!Options.get().isHeapSensitivityEnabled())
+            heapContext = null;
         return make(null, null, f, Kind.FUNCTION, heapContext, true);
     }
 
@@ -290,7 +293,7 @@ public final class ObjectLabel implements Comparable<ObjectLabel>, DeepImmutable
         }
         if ((hostobject == null) != (x.hostobject == null))
             return false;
-        if (!heapContext.equals(x.heapContext)) // using collection equality
+        if (!heapContext.equals(x.heapContext)) // using collection equality.
             return false;
         return (hostobject == null || hostobject.equals(x.hostobject)) &&
                 function == x.function && node == x.node &&

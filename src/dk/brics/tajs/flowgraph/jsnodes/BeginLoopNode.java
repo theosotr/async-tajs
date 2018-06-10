@@ -60,6 +60,11 @@ public class BeginLoopNode extends Node {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void visitBy(NodeVisitor v) {
         v.visit(this);
     }

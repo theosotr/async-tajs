@@ -1,0 +1,13 @@
+test-resources/src/async/test28.js:17:7: [definite] TypeError, accessing property of null/undefined
+test-resources/src/async/test28.js:17:7: [definite] Variable z is null/undefined
+test-resources/src/async/test28.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test28.js:18:22: [definite] Unreachable code
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-5[Q=[@Promise#node13], R=[@Promise#node19]]" -> "ff2-22[Q=[@Promise#node30], R=[@Promise#node36]]";
+"ff2-22[Q=[@Promise#node30], R=[@Promise#node36]]" -> "ff3-9[Q=[@Promise#node19], R=[@Promise#node22]]";
+"ff3-9[Q=[@Promise#node19], R=[@Promise#node22]]" -> "ff4-26[Q=[@Promise#node36], R=[@Promise#node39]]";
+"ff4-26[Q=[@Promise#node36], R=[@Promise#node39]]" -> "ff5-15[Q=[@Promise#node22], R=[@Promise#node25]]";
+"ff5-15[Q=[@Promise#node22], R=[@Promise#node25]]";
+}

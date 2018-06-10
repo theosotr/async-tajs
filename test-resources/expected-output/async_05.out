@@ -1,0 +1,7 @@
+test-resources/src/async/test05.js: [definite] Exceptional program exit is unreachable
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-25[Q=[@Object#node40], R=[@Promise#node79]]" -> "ff2-36[Q=[@Promise#node79], R=[@Promise#node82]]";
+"ff2-36[Q=[@Promise#node79], R=[@Promise#node82]]";
+}

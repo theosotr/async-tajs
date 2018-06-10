@@ -82,7 +82,8 @@ public class BasicContextSensitivityStrategy implements IContextSensitivityStrat
         }
         Function f = obj_f.getFunction();
         Set<String> contextSensitiveParameterNames = this.contextSensitiveParameters.get(f);
-        if (contextSensitiveParameterNames == null) {
+        if (contextSensitiveParameterNames == null &&
+                (!(callInfo.getSourceNode().isEventLoop() && Options.get().isCallbackParameterSensitivityEnabled()))) {
             return null;
         }
         final ContextArguments funArgs;
@@ -115,14 +116,19 @@ public class BasicContextSensitivityStrategy implements IContextSensitivityStrat
 
     @Override
     public Context makeInitialContext() {
-        Context c = Context.make(null, null, null, null, null);
+        Context c = Context.make(null, null, null, null, null,
+                                 null, null, null);
         if (log.isDebugEnabled())
             log.debug("creating initial context " + c);
         return c;
     }
 
     @Override
-    public Context makeFunctionEntryContext(State state, ObjectLabel function, FunctionCalls.CallInfo callInfo, Value thisval, Solver.SolverInterface c) {
+    public Context makeFunctionEntryContext(State state, ObjectLabel function,
+                                            FunctionCalls.CallInfo callInfo, Value thisval,
+                                            Value queueObj, Value dQueueObj,
+                                            List<Value> resolveValue,
+                                            Solver.SolverInterface c) {
         assert (function.getKind() == ObjectLabel.Kind.FUNCTION);
         // set thisval for object sensitivity (unlike traditional object sensitivity we use abstract values instead of individual object labels)
         /*Value*/ thisval = null; // FIXME: why not use the thisval argument? (github #479)
@@ -133,8 +139,21 @@ public class BasicContextSensitivityStrategy implements IContextSensitivityStrat
         }
         ContextArguments contextArguments = makeContextArgumentsForCall(function, state, callInfo);
 
+        Value qObj = null;
+        Value qDQobj = null;
+        if (!Options.get().isQRSensitivityDisabled() && callInfo.getSourceNode().isEventLoop()) {
+            qObj = queueObj;
+            qDQobj = dQueueObj;
+        }
+
+        List<Value> args = null;
+        if (Options.get().isCallbackParameterSensitivityEnabled() &&
+                callInfo.getSourceNode().isEventLoop())
+            args = resolveValue;
+
         // note: c.localContext and c.localContextAtEntry are null by default, which will kill unrollings across calls
-        Context context = Context.make(thisval, contextArguments, null, null, null);
+        Context context = Context.make(thisval, contextArguments, null,
+                                      null, null, qObj, qDQobj, args);
 
         if (log.isDebugEnabled())
             log.debug("creating function entry context " + context);
@@ -158,7 +177,10 @@ public class BasicContextSensitivityStrategy implements IContextSensitivityStrat
 
         // for-in acts as entry, so update localContextAtEntry
         Context c = Context.make(currentContext.getThisVal(), currentContext.getFunArgs(), specialRegs,
-                currentContext.getLocalContext(), currentContext.getLocalContext());
+                currentContext.getLocalContext(), currentContext.getLocalContext(),
+                currentContext.getQueueObject(),
+                currentContext.getDependentQueueObject(),
+                currentContext.getResolveValue());
 
         if (log.isDebugEnabled())
             log.debug("creating for-in entry context " + c);
@@ -190,7 +212,9 @@ public class BasicContextSensitivityStrategy implements IContextSensitivityStrat
         localContextQualifiers.put(key, Value.makeNum(nextUnrollingCount));
 
         Context c = Context.make(currentContext.getThisVal(), currentContext.getFunArgs(), currentContext.getSpecialRegisters(),
-                LocalContext.make(localContextQualifiers), currentContext.getLocalContextAtEntry());
+                LocalContext.make(localContextQualifiers), currentContext.getLocalContextAtEntry(),
+                currentContext.getQueueObject(), currentContext.getDependentQueueObject(),
+                currentContext.getResolveValue());
 
         if (log.isDebugEnabled())
             log.debug("creating loop unrolling context " + c);
@@ -209,7 +233,9 @@ public class BasicContextSensitivityStrategy implements IContextSensitivityStrat
         localContextQualifiers.remove(key);
 
         Context c = Context.make(currentContext.getThisVal(), currentContext.getFunArgs(), currentContext.getSpecialRegisters(),
-                LocalContext.make(localContextQualifiers), currentContext.getLocalContextAtEntry());
+                LocalContext.make(localContextQualifiers), currentContext.getLocalContextAtEntry(),
+                currentContext.getQueueObject(), currentContext.getDependentQueueObject(),
+                currentContext.getResolveValue());
 
         if (log.isDebugEnabled())
             log.debug("creating loop unrolling exit context " + c);

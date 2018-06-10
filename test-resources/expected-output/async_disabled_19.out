@@ -1,0 +1,16 @@
+test-resources/src/async/test31.js:20:13: [definite] TypeError, accessing property of null/undefined
+test-resources/src/async/test31.js:20:13: [definite] Variable z is null/undefined
+test-resources/src/async/test31.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test31.js:10:9: [info] Abstract value: "executed"
+test-resources/src/async/test31.js:22:13: [info] Abstract value: "catch executed"
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-6[]" -> "ff6-26[]";
+"ff2-8[]" -> "ff3-13[]";
+"ff3-13[]" -> "ff4-18[]";
+"ff4-18[]" -> "ff5-21[]";
+"ff5-21[]";
+"ff6-26[]" -> "ff2-8[]";
+"resolve[#0]" -> "ff1-6[]";
+}

@@ -1,0 +1,13 @@
+test-resources/src/async/test20.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test20.js:21:26: [definite] The variable res is never used
+test-resources/src/async/test20.js:31:9: [definite] Unreachable function ff6
+test-resources/src/async/test20.js:34:3: [definite] Unreachable function ff7
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-3[Q=[@Promise#node10], R=[@Promise#node16]]" -> "ff2-9[Q=[@Promise#node16], R=[@Promise#node19]]";
+"ff2-9[Q=[@Promise#node16], R=[@Promise#node19]]" -> "ff3-13[Q=[@Promise#node19], R=[@Promise#node22]]";
+"ff3-13[Q=[@Promise#node19], R=[@Promise#node22]]" -> "ff4-19[Q=[@Promise#node22], R=[@Promise#node25]]";
+"ff4-19[Q=[@Promise#node22], R=[@Promise#node25]]" -> "ff5-25[Q=[@Promise#node25], R=[@Promise#node28]]";
+"ff5-25[Q=[@Promise#node25], R=[@Promise#node28]]";
+}

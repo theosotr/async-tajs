@@ -209,6 +209,10 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
         return size;
     }
 
+    private int nodes() {
+        return call_sources.size();
+    }
+
     /**
      * Returns a textual description of this call graph.
      * Contexts and pseudo-call-edges are disregarded in the output.
@@ -335,6 +339,7 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
         StringBuilder sb = new StringBuilder();
         int total = getNumberOfInvocationsInDifferentContexts(0);
         int single = getNumberOfInvocationsInDifferentContexts(1);
+        sb.append("Call graph nodes:                                                             ").append(this.nodes() + 1).append("\n");
         sb.append("Total invocations:                                                            ").append(total).append("\n");
         sb.append("Total invocations with single target:                                         ").append(single).append("\n");
         sb.append("Single target invocations:                                                    ").append(total > 0 ? (100 * ((float) single) / total) + "%" : "-").append("\n");

@@ -25,6 +25,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.FileSystem;
 import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -116,11 +117,20 @@ public class PathAndURLUtils {
         return getRelativeTo(getWorkingDirectory(), path);
     }
 
+    private static Path transformPath(final FileSystem fs, final Path path) {
+        Path ret = fs.getPath(path.isAbsolute() ? fs.getSeparator() : "");
+        for (final Path component: path)
+            ret = ret.resolve(component.getFileName().toString());
+        return ret;
+    }
+
     /**
      * Makes a relative Path that is relative to the 'from' directory.
      */
     public static Path getRelativeTo(Path from, Path to) {
-        return from.toAbsolutePath().normalize().relativize(to.toAbsolutePath()).normalize();
+        Path toAbs = to.toAbsolutePath();
+        toAbs = transformPath(from.getFileSystem(), toAbs);
+        return from.toAbsolutePath().normalize().relativize(toAbs).normalize();
     }
 
     /**

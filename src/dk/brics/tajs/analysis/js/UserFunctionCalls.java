@@ -18,6 +18,7 @@ package dk.brics.tajs.analysis.js;
 
 import dk.brics.tajs.analysis.Conversion;
 import dk.brics.tajs.analysis.Exceptions;
+import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.FunctionCalls.CallInfo;
 import dk.brics.tajs.analysis.InitialStateBuilder;
 import dk.brics.tajs.analysis.PropVarOperations;
@@ -32,6 +33,7 @@ import dk.brics.tajs.flowgraph.jsnodes.DeclareFunctionNode;
 import dk.brics.tajs.flowgraph.jsnodes.EventDispatcherNode;
 import dk.brics.tajs.flowgraph.jsnodes.NopNode;
 import dk.brics.tajs.lattice.CallEdge;
+import dk.brics.tajs.lattice.CallbackDescription;
 import dk.brics.tajs.lattice.Context;
 import dk.brics.tajs.lattice.ExecutionContext;
 import dk.brics.tajs.lattice.HeapContext;
@@ -41,6 +43,8 @@ import dk.brics.tajs.lattice.ObjectLabel.Kind;
 import dk.brics.tajs.lattice.ObjectProperty;
 import dk.brics.tajs.lattice.PKey;
 import dk.brics.tajs.lattice.PKey.StringPKey;
+import dk.brics.tajs.lattice.QueueContext;
+import dk.brics.tajs.lattice.QueueObject;
 import dk.brics.tajs.lattice.ScopeChain;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Summarized;
@@ -49,10 +53,12 @@ import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.solver.BlockAndContext;
 import dk.brics.tajs.solver.CallGraph;
+import dk.brics.tajs.solver.CallbackGraph;
 import dk.brics.tajs.solver.GenericSolver;
 import dk.brics.tajs.solver.Message.Severity;
 import dk.brics.tajs.solver.NodeAndContext;
 import dk.brics.tajs.util.AnalysisException;
+import dk.brics.tajs.util.Chain;
 import dk.brics.tajs.util.Collectors;
 import org.apache.log4j.Logger;
 
@@ -291,8 +297,29 @@ public class UserFunctionCalls {
                 });
     }
 
-    private static void propagateToFunctionEntry(State edge_state, AbstractNode n, ObjectLabel obj_f, CallInfo callInfo, boolean implicit, Solver.SolverInterface c) {
-        Context edge_context = c.getAnalysis().getContextSensitivityStrategy().makeFunctionEntryContext(edge_state, obj_f, callInfo, edge_state.readThis(), c);
+    private static void propagateToFunctionEntry(State edge_state, AbstractNode n,
+                                                 ObjectLabel obj_f, CallInfo callInfo,
+                                                 boolean implicit, Solver.SolverInterface c) {
+        Value queueObj = null;
+        Value dQueueObj = null;
+        List<Value> resolveValue = null;
+        if (callInfo.getSourceNode().isEventLoop() &&
+                callInfo instanceof FunctionCalls.AsyncCall) {
+            /*
+               Get the queue object that the return value of this call is
+               going to settle in order to create a queue object-sensitivity
+               if necessary.
+             */
+            queueObj = Value.makeObject(
+                    ((FunctionCalls.AsyncCall) callInfo).getQueueObject());
+            dQueueObj = Value.makeObject(
+                    ((FunctionCalls.AsyncCall) callInfo).getdQueueObject());
+            resolveValue = newList();
+            for (int i = 0; i < callInfo.getNumberOfArgs(); i++)
+                resolveValue.add(callInfo.getArg(i));
+        }
+        Context edge_context = c.getAnalysis().getContextSensitivityStrategy().makeFunctionEntryContext(
+                edge_state, obj_f, callInfo, edge_state.readThis(), queueObj, dQueueObj, resolveValue, c);
         c.propagateToFunctionEntry(n, edge_state.getContext(), edge_state, edge_context, obj_f.getFunction().getEntry(), implicit);
     }
 
@@ -386,11 +413,23 @@ public class UserFunctionCalls {
         ObjectLabel arguments_obj = ObjectLabel.make(f.getEntry().getFirstNode(), Kind.ARGUMENTS, heapContext);
         callee_summarized.addDefinitelySummarized(arguments_obj);
         State calledge_state = c.getAnalysisLatticeElement().getCallGraph().getCallEdge(node, caller_context, f.getEntry(), edge_context).getState();
+        boolean isExecutor = false;
+        Value execValue = returnval;
+        if (calledge_state.getExecutionContext().getThis().isMaybePromise()
+                && !calledge_state.getExecutionContext().getThis().isMaybeNonPromise()
+                && is_constructor) {
+            // Maybe it's a hack. In this way we identify executor functions.
+            // TODO further consideration.
+            isExecutor = true;
+            returnval = Value.makeUndef();
+        }
+        if (node.isEventLoop())
+            state.setCallbackContext(edge_context.toCallbackContext());
         returnval = mergeFunctionReturn(state, c.getAnalysisLatticeElement().getStates(node.getBlock()).get(caller_context),
                 calledge_state,
                 c.getAnalysisLatticeElement().getState(BlockAndContext.makeEntry(node.getBlock(), caller_context)),
                 callee_summarized,
-                returnval, null); // TODO: not obvious why this part is in dk.brics.tajs.analysis and the renaming and localization is done via dk.brics.tajs.solver...
+                returnval, null, f); // TODO: not obvious why this part is in dk.brics.tajs.analysis and the renaming and localization is done via dk.brics.tajs.solver...
         if (node.isRegistersDone())
             state.clearOrdinaryRegisters();
         if (implicit) {
@@ -401,12 +440,47 @@ public class UserFunctionCalls {
             state.setContext(caller_context);
         }
 
-        if (exceptional) {
+        /*
+          No matter if executor generated an exception.
+          We always create an new promise as usual and
+          we do not propagate any error to the caller.
+          We simply reject the generated promise.
+         */
+        Set<QueueContext> queueContexts = null;
+        if (state.getQueueChain() != null)
+            queueContexts = state.getQueueChain().getTop();
+        boolean restrictSchedule = false;
+        CallbackGraph callbackGraph = state.getSolverInterface()
+                .getAnalysisLatticeElement().getCallbackGraph();
+        if (node.isEventLoop()) {
+            restrictSchedule = callbackGraph.isAnalyzed(f,
+                    state.getCallbackContext());
+            callbackGraph.markAnalyzed(f,
+                    state.getCallbackContext());
+        }
+        if (exceptional && !isExecutor) {
             // collect garbage
             state.reduce(returnval);
 
-            // transfer exception value to caller
-            Exceptions.throwException(state, returnval, c, node);
+            if (node.isEventLoop()) {
+                state.settleQueueObjects(returnval, false, null,
+                                         false, restrictSchedule);
+                state.popQueueChain();
+                if (!state.isQueueChainEmpty())
+                    throw new AnalysisException(
+                            "Exiting callback and the queue chain is not empty");
+                if (node.isEventLoop() && !Options.get().isCallbackSensitivityDisabled())
+                    FunctionCalls.propagateToNextCall(
+                            node, state, c, f, queueContexts, caller_context);
+                else {
+                    if (node.isEventLoop())
+                        state.removeQueueObjects();
+                    c.propagateToBasicBlock(state, node.getBlock().getSingleSuccessor(),
+                                            caller_context);
+                }
+            } else
+                // transfer exception value to caller
+                Exceptions.throwException(state, returnval, c, node);
         } else {
             returnval = UnknownValueResolver.getRealValue(returnval, state);
             if (!returnval.isNone()) { // skip if no value (can happen when propagateToFunctionEntry calls transferReturn)
@@ -414,6 +488,21 @@ public class UserFunctionCalls {
                 if (is_constructor && returnval.isMaybePrimitiveOrSymbol()) {
                     // 13.2.2.7-8 replace non-object by the new object (which is kept in 'this' at the call edge)
                     returnval = returnval.restrictToObject().join(calledge_state.getExecutionContext().getThis());
+                }
+
+                if (node.isEventLoop()) {
+                    state.settleQueueObjects(
+                            returnval, true, null, true,
+                            restrictSchedule);
+                    state.popQueueChain();
+                    if (!state.isQueueChainEmpty())
+                        throw new AnalysisException(
+                                "Exiting callback and the queue chain is not empty");
+                } else if (isExecutor) {
+                    if (exceptional)
+                        state.settleQueueObjects(
+                                execValue, false, null, false, false);
+                    state.popQueueChain();
                 }
 
                 if (!implicit) {
@@ -433,11 +522,117 @@ public class UserFunctionCalls {
                     if (changed) { // note: this cannot be changed into calling propagateToBasicBlock, since we add a different block to the worklist
                         c.addToWorklist(node.getBlock(), caller_context);
                     }
-                } else { // ordinary call, flow to next basic block after call node
-                    c.propagateToBasicBlock(state, node.getBlock().getSingleSuccessor(), caller_context);
+                } else {// ordinary call, flow to next basic block after call node
+                    if (node.isEventLoop() && !Options.get().isCallbackSensitivityDisabled()) {
+                        FunctionCalls.propagateToNextCall(
+                                node, state, c, f, queueContexts, caller_context);
+                    } else {
+                        if (node.isEventLoop())
+                            state.removeQueueObjects();
+                        c.propagateToBasicBlock(state, node.getBlock().getSingleSuccessor(), caller_context);
+                    }
                 }
             }
         }
+    }
+
+    private static void summarizeScheduledCallbacks(
+            Chain<CallbackDescription> retScheduledCallbacks,
+            Chain<CallbackDescription> callerScheduledCallbacks) {
+        if (retScheduledCallbacks == null)
+            return;
+        Chain<CallbackDescription> c = callerScheduledCallbacks;
+        while (c != null) {
+            Set<CallbackDescription> t = c.getTop();
+            for (CallbackDescription clbDesc : t) {
+                CallbackDescription cloned = clbDesc.clone();
+                boolean any = false;
+                if (cloned.getQueueObject().isSingleton()) {
+                    any = true;
+                    cloned.setQueueObject(cloned.getQueueObject().makeSummary());
+                    if (retScheduledCallbacks.has(cloned)) {
+                        clbDesc.setQueueObject(cloned.getQueueObject());
+                        continue;
+                    }
+                }
+                if (cloned.getDependentQueueObject().isSingleton()) {
+                    cloned.setDependentQueueObject(cloned.getDependentQueueObject().makeSummary());
+                    if (retScheduledCallbacks.has(cloned)) {
+                        if (any)
+                            clbDesc.setQueueObject(cloned.getQueueObject());
+                        clbDesc.setDependentQueueObject(cloned.getDependentQueueObject());
+                        continue;
+                    }
+                    if (any)
+                        cloned.setQueueObject(cloned.getQueueObject().makeSingleton());
+                    if (retScheduledCallbacks.has(cloned)) {
+                        clbDesc.setDependentQueueObject(cloned.getDependentQueueObject());
+                    }
+                }
+            }
+            c = c.getNext();
+        }
+    }
+
+    private static Chain<CallbackDescription> filterSummaries(
+            Chain<CallbackDescription> scheduledCallbacks) {
+        Chain<CallbackDescription> newChain = null;
+        Chain<CallbackDescription> s = scheduledCallbacks;
+        while (s != null) {
+            Set<CallbackDescription> descs = newSet();
+            Set<CallbackDescription> t = s.getTop();
+            for (CallbackDescription desc : t) {
+                boolean any = false;
+                CallbackDescription cloned = desc.clone();
+                if (!cloned.getQueueObject().isSingleton()) {
+                    any = true;
+                    cloned.setQueueObject(cloned.getQueueObject().makeSingleton());
+                }
+                if (!cloned.getDependentQueueObject().isSingleton()) {
+                    any = true;
+                    cloned.setDependentQueueObject(cloned.getDependentQueueObject().makeSingleton());
+                }
+                if (!any)
+                    descs.add(desc);
+                if (any && !t.contains(cloned))
+                    descs.add(desc);
+            }
+
+            if (!descs.isEmpty()) {
+                Chain<CallbackDescription> n = Chain
+                        .make(descs, null);
+                if (newChain == null)
+                    newChain = n;
+                else
+                    newChain.appendLast(n);
+            }
+            s = s.getNext();
+
+        }
+        return newChain;
+    }
+
+    private static Chain<CallbackDescription> filterDuplicateCallbacks(
+            Chain<CallbackDescription> retScheduledCallbacks,
+            Chain<CallbackDescription> callerScheduledCallbacks) {
+        Chain<CallbackDescription> newChain = null;
+        Chain<CallbackDescription> s = retScheduledCallbacks;
+        while (s != null) {
+            Set<CallbackDescription> descs = s.getTop()
+                    .stream()
+                    .filter(x -> !callerScheduledCallbacks.has(x))
+                    .collect(Collectors.toSet());
+            if (!descs.isEmpty()) {
+                Chain<CallbackDescription> n = Chain
+                        .make(descs, null);
+                if (newChain == null)
+                    newChain = n;
+                else
+                    newChain.appendLast(n);
+            }
+            s = s.getNext();
+        }
+        return newChain;
     }
 
     /**
@@ -466,12 +661,15 @@ public class UserFunctionCalls {
      * Returns the updated returnval if non-null.
      */
     public static Value mergeFunctionReturn(State return_state, State caller_state, State calledge_state, State caller_entry_state,
-                                            Summarized callee_summarized, Value returnval, Value exval) {
+                                            Summarized callee_summarized, Value returnval, Value exval,
+                                            Function f) {
         return_state.makeWritableStore();
         return_state.setStoreDefault(caller_state.getStoreDefault().freeze());
         // strengthen each object and replace polymorphic values
         State summarized_calledge = calledge_state.clone();
-        summarizeStoreAndRegisters(summarized_calledge, return_state.getSummarized());
+        Set<ObjectLabel> summarizedObjs = newSet();
+        summarizeStoreAndRegisters(summarized_calledge, return_state.getSummarized(), summarizedObjs,
+                f, return_state);
         for (ObjectLabel objlabel : return_state.getStore().keySet()) {
             Obj obj = return_state.getObject(objlabel, true); // always preparing for object updates, even if no changes are made
             replacePolymorphicValues(obj, calledge_state, caller_entry_state, return_state);
@@ -483,7 +681,57 @@ public class UserFunctionCalls {
         // restore objects that were not used by the callee (i.e. either 'unknown' or never retrieved from basis_store to store)
         for (Map.Entry<ObjectLabel, Obj> me : summarized_calledge.getStore().entrySet())
             if (!return_state.getStore().containsKey(me.getKey()))
-                return_state.putObject(me.getKey(), me.getValue()); // obj is freshly created at summarizeStoreAndRegisters, so freeze() unnecessary
+                return_state.putObject(me.getKey(), me.getValue());// obj is freshly created at summarizeStoreAndRegisters, so freeze() unnecessary
+        for (Map.Entry<ObjectLabel, Set<QueueObject>> qu: summarized_calledge.getQueue().entrySet()) {
+            Set<QueueObject> queueObjects = qu.getValue();
+            ObjectLabel objectLabel = qu.getKey();
+            if (!return_state.getQueue().containsKey(objectLabel))
+                return_state.addQueueObjects(objectLabel, queueObjects);
+            else {
+                QueueObject.Kind kind = QueueObject.Kind.PROMISE;
+                if (objectLabel.equals(InitialStateBuilder.ASYNC_IO))
+                    kind = QueueObject.Kind.ASYNC_IO;
+                if (objectLabel.equals(InitialStateBuilder.SET_TIMEOUT_QUEUE_OBJ))
+                    kind = QueueObject.Kind.TIMER;
+                Set<QueueObject> retQueueObjects = return_state
+                        .getQueue().get(objectLabel);
+                // FIXME: It's a hack.
+                boolean replacePending = retQueueObjects
+                        .stream().anyMatch(x -> !x.isSettled());
+                boolean hasDependentPending = retQueueObjects
+                        .stream().anyMatch(x -> !x.isSettled() && x.isDependent());
+                boolean nonDependentPending = queueObjects.stream()
+                        .anyMatch(x -> !x.isSettled() && !x.isDependent());
+                if (!(hasDependentPending && nonDependentPending))
+                    return_state.addQueueObjects(qu.getKey(),
+                            QueueObject.join(retQueueObjects, queueObjects,
+                                             QueueObject.Join.DEFAULT,
+                                             !replacePending, kind));
+            }
+        }
+        return_state.setQueueChain(calledge_state.getQueueChain());
+        //return_state.setCallbackContext(calledge_state.getCallbackContext());
+        Chain<CallbackDescription> s = calledge_state
+                .getScheduledCallbacks();
+        CallbackGraph callbackGraph = return_state.getSolverInterface()
+                .getAnalysisLatticeElement().getCallbackGraph();
+        if (s != null) {
+            s = s.clone();
+            boolean isAnalyzed = callbackGraph.isAnalyzed(
+                    f, return_state.getCallbackContext());
+            Chain<CallbackDescription> filtered;
+            if (isAnalyzed) {
+                filtered = filterDuplicateCallbacks(
+                        return_state.getScheduledCallbacks(),
+                        s);
+            } else {
+                summarizeScheduledCallbacks(return_state.getScheduledCallbacks(), s);
+                filtered = filterDuplicateCallbacks(return_state.getScheduledCallbacks(), s);
+            }
+            if (filtered != null)
+                s.appendLast(filtered.clone());
+            return_state.setScheduledCallbacks(s);
+        }
         // remove objects that are equal to the default object
         return_state.removeObjectsEqualToDefault(caller_entry_state.getStoreDefault().isAllNone());
         // restore execution_context and stacked_objlabels from caller
@@ -506,7 +754,7 @@ public class UserFunctionCalls {
 
     /**
      * Replaces the polymorphic properties of the given object.
-     * Used by {@link #mergeFunctionReturn(State, State, State, State, Summarized, Value, Value)}.
+     * Used by {@link #mergeFunctionReturn(State, State, State, State, Summarized, Value, Value, Function)}.
      */
     private static void replacePolymorphicValues(Obj obj,
                                                  State calledge_state,
@@ -593,10 +841,17 @@ public class UserFunctionCalls {
 
     /**
      * Summarizes the store and registers according to the given summarization.
-     * Used by {@link #mergeFunctionReturn(State, State, State, State, Summarized, Value, Value)}.
+     * Used by {@link #mergeFunctionReturn(State, State, State, State, Summarized, Value, Value, Function)}.
      */
-    private static void summarizeStoreAndRegisters(State state, Summarized s) {
+    private static void summarizeStoreAndRegisters(State state, Summarized s,
+                                                   Set<ObjectLabel> summarized,
+                                                   Function f,
+                                                   State returnState) {
         state.makeWritableStore();
+        CallbackGraph callbackGraph = state
+                .getSolverInterface().getAnalysisLatticeElement()
+                .getCallbackGraph();
+        boolean isAnalyzed = callbackGraph.isAnalyzed(f, returnState.getCallbackContext());
         for (ObjectLabel objlabel : newList(state.getStore().keySet())) {
             // summarize the object property values
             Obj obj = state.getObject(objlabel, false);
@@ -604,10 +859,15 @@ public class UserFunctionCalls {
             if (!summarized_obj.equals(obj))
                 state.putObject(objlabel, summarized_obj);
             if (objlabel.isSingleton()) {
-                if (s.isMaybeSummarized(objlabel))
+                if (s.isMaybeSummarized(objlabel)) {
                     state.propagateObj(objlabel.makeSummary(), state, objlabel, true);
-                if (s.isDefinitelySummarized(objlabel))
+                    state.summarizeQueue(objlabel, objlabel.makeSummary());
+                }
+                if (s.isDefinitelySummarized(objlabel)) {
                     state.removeObject(objlabel);
+                    summarized.add(objlabel.makeSummary());
+                    state.removeQueueObject(objlabel, objlabel.makeSummary(), !isAnalyzed);
+                }
             }
         }
         List<Value> registers = state.getRegisters();

@@ -1,0 +1,16 @@
+test-resources/src/async/test27.js:15:13: [definite] Dead assignment, property then is never read
+test-resources/src/async/test27.js: [definite] Exceptional program exit is unreachable
+test-resources/src/async/test27.js:16:17: [info] Abstract value: "thenable exec"
+test-resources/src/async/test27.js:33:7: [info] Abstract value: IdentStr
+Writing callback graph to out/callbackgraph.dot
+digraph {
+node [shape=circle]
+"ff1-27[]" -> "ff2-6[]";
+"ff1-27[]" -> "ff3-15[]";
+"ff2-6[]" -> "ff4-10[]";
+"ff2-6[]" -> "ff5-31[]";
+"ff3-15[]" -> "ff4-10[]";
+"ff3-15[]" -> "ff5-31[]";
+"ff4-10[]";
+"ff5-31[]";
+}

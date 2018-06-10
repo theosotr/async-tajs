@@ -17,7 +17,9 @@
 package dk.brics.tajs.analysis;
 
 import dk.brics.tajs.analysis.dom.DOMBuilder;
+import dk.brics.tajs.analysis.nativeobjects.DefaultReactionFunction;
 import dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects;
+import dk.brics.tajs.analysis.nativeobjects.RaceFunction;
 import dk.brics.tajs.flowgraph.BasicBlock;
 import dk.brics.tajs.lattice.CallEdge;
 import dk.brics.tajs.lattice.Context;
@@ -26,6 +28,7 @@ import dk.brics.tajs.lattice.HostObject;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
 import dk.brics.tajs.lattice.PKey;
+import dk.brics.tajs.lattice.QueueObject;
 import dk.brics.tajs.lattice.ScopeChain;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
@@ -84,6 +87,11 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
      * Object label for Date.prototype.
      */
     public static ObjectLabel DATE_PROTOTYPE;
+
+    /**
+     * Object label for Promise.prototype.
+     */
+    public static ObjectLabel PROMISE_PROTOTYPE;
 
     /**
      * Object label for Proxy.prototype.
@@ -145,6 +153,34 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
     public static ObjectLabel JSON_OBJECT;
 
     /**
+     * Object label for default reaction for `onFulfilled`.
+     */
+    public static ObjectLabel DEFAULT_ONFULFILL;
+
+    /**
+     * Object label for default reaction for `onRejected`.
+     */
+    public static ObjectLabel DEFAULT_ONREJECT;
+
+    public static ObjectLabel PROMISE_RACE_FUN;
+
+    /**
+     * Object label corresponding to the queue object of setTimeout.
+     */
+    public static ObjectLabel SET_TIMEOUT_QUEUE_OBJ;
+
+    /**
+     * Object label for the object for executing Async I/O.
+     */
+    public static ObjectLabel ASYNC_IO;
+
+    private static DefaultReactionFunction ONFULFILL_FUN;
+
+    private static DefaultReactionFunction ONREJECT_FUN;
+
+    private static RaceFunction PROMISE_RACER;
+
+    /**
      * Well-known EC6 Symbols
      */
     public static ObjectLabel UNKNOWN_SYMBOL_INSTANCES;
@@ -176,6 +212,7 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         BOOLEAN_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.BOOLEAN_PROTOTYPE, Kind.BOOLEAN);
         NUMBER_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.NUMBER_PROTOTYPE, Kind.NUMBER);
         DATE_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.DATE_PROTOTYPE, Kind.DATE);
+        PROMISE_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.PROMISE_PROTOTYPE, Kind.OBJECT);
         PROXY_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.PROXY_PROTOTYPE, Kind.OBJECT);
         REGEXP_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.REGEXP_PROTOTYPE, Kind.OBJECT);
         SYMBOL_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.SYMBOL_PROTOTYPE, Kind.OBJECT);
@@ -199,6 +236,14 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         WELLKNOWN_SYMBOL_TO_PRIMITIVE = ObjectLabel.make(ECMAScriptObjects.SYMBOL_TO_PRIMITIVE, Kind.SYMBOL);
         WELLKNOWN_SYMBOL_TO_STRING_TAG = ObjectLabel.make(ECMAScriptObjects.SYMBOL_TO_STRING_TAG, Kind.SYMBOL);
         WELLKNOWN_SYMBOL_UNSCOPABLES = ObjectLabel.make(ECMAScriptObjects.SYMBOL_UNSCOPABLES, Kind.SYMBOL);
+
+        //Internal functions.
+        ONFULFILL_FUN = new DefaultReactionFunction(DefaultReactionFunction.Kind.ON_FULFILL);
+        ONREJECT_FUN = new DefaultReactionFunction(DefaultReactionFunction.Kind.ON_REJECT);
+        DEFAULT_ONFULFILL = ObjectLabel.make(ONFULFILL_FUN, ObjectLabel.Kind.FUNCTION);
+        DEFAULT_ONREJECT = ObjectLabel.make(ONREJECT_FUN, ObjectLabel.Kind.FUNCTION);
+        PROMISE_RACER = new RaceFunction();
+        PROMISE_RACE_FUN = ObjectLabel.make(PROMISE_RACER, ObjectLabel.Kind.FUNCTION);
     }
 
     /**
@@ -245,6 +290,8 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         s.newObject(lNumber);
         ObjectLabel lDate = ObjectLabel.make(ECMAScriptObjects.DATE, Kind.FUNCTION);
         s.newObject(lDate);
+        ObjectLabel lPromise = ObjectLabel.make(ECMAScriptObjects.PROMISE, Kind.FUNCTION);
+        s.newObject(lPromise);
         ObjectLabel lProxy = ObjectLabel.make(ECMAScriptObjects.PROXY, Kind.FUNCTION);
         s.newObject(lProxy);
         ObjectLabel lRegExp = ObjectLabel.make(ECMAScriptObjects.REGEXP, Kind.FUNCTION);
@@ -286,6 +333,8 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         s.newObject(lNumberProto);
         ObjectLabel lDateProto = DATE_PROTOTYPE;
         s.newObject(lDateProto);
+        ObjectLabel lPromiseProto = PROMISE_PROTOTYPE;
+        s.newObject(lPromiseProto);
         ObjectLabel lProxyProto = PROXY_PROTOTYPE;
         s.newObject(lProxyProto);
         ObjectLabel lRegExpProto = REGEXP_PROTOTYPE;
@@ -350,6 +399,25 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
 
         // EC6 Symbol
         createPrimitiveConstructor(global, lFunProto, lSymbProto, lSymb, "Symbol", 1, c);
+
+        // EC6 Promise
+        createPrimitiveConstructor(global, lFunProto, lPromiseProto, lPromise, "Promise", 1, c);
+        createPrimitiveFunction(lPromise, lFunProto, ECMAScriptObjects.PROMISE_RACE, "race", 1, c);
+        createPrimitiveFunction(lPromise, lFunProto, ECMAScriptObjects.PROMISE_RESOLVE, "resolve", 1, c);
+        createPrimitiveFunction(lPromise, lFunProto, ECMAScriptObjects.PROMISE_REJECT, "reject", 1, c);
+        createPrimitiveFunction(lPromiseProto, lFunProto, ECMAScriptObjects.PROMISE_THEN, "then", 2, c);
+        createPrimitiveFunction(lPromiseProto, lFunProto, ECMAScriptObjects.PROMISE_CATCH, "catch", 1, c);
+        createPrimitiveFunction(lPromiseProto, lFunProto, ECMAScriptObjects.PROMISE_FINALLY, "finally", 1, c);
+
+        ASYNC_IO = createFulfilledQueueObj(ECMAScriptObjects.ASYNC_IO, c.getState(),
+                                           QueueObject.Kind.ASYNC_IO);
+        State.QUEUE_OBJECT_KINDS.put(ASYNC_IO, QueueObject.Kind.ASYNC_IO);
+
+        // Timers
+        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.SET_TIMEOUT, "setTimeout", 1, c);
+        SET_TIMEOUT_QUEUE_OBJ = createFulfilledQueueObj(ECMAScriptObjects.SET_TIMEOUT, c.getState(),
+                                                        QueueObject.Kind.TIMER);
+        State.QUEUE_OBJECT_KINDS.put(SET_TIMEOUT_QUEUE_OBJ, QueueObject.Kind.TIMER);
 
         pv.writePropertyWithAttributes(global, "JSON", Value.makeObject(lJson).setAttributes(true, false, false));
         createPrimitiveFunction(lJson, lFunProto, ECMAScriptObjects.JSON_PARSE, "parse", 1, c);
@@ -723,6 +791,20 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_GETYEAR, "getYear", 0, c);
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_SETYEAR, "setYear", 2, c);
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_TOGMTSTRING, "toGMTString", 0, c);
+
+        // Internal functions.
+        createPrimitiveFunction(DEFAULT_ONFULFILL, lFunProto, ONFULFILL_FUN, "on_fulfill", 1, c);
+        createPrimitiveFunction(DEFAULT_ONREJECT, lFunProto, ONREJECT_FUN, "on_reject", 1, c);
+        createPrimitiveFunction(PROMISE_RACE_FUN, lFunProto, PROMISE_RACER, "race", 2, c);
+    }
+
+    private ObjectLabel createFulfilledQueueObj(HostObject primitive, State state,
+                                                QueueObject.Kind kind) {
+        ObjectLabel objectLabel = ObjectLabel.make(primitive, Kind.OBJECT);
+        state.newObject(objectLabel);
+        state.newQueueObject(objectLabel, kind);
+        state.settleQueueObject(objectLabel, null, true, null, false);
+        return objectLabel;
     }
 
     /**
@@ -736,10 +818,11 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
     /**
      * Creates a new built-in function.
      */
-    public static void createPrimitiveFunction(ObjectLabel target, ObjectLabel internal_proto, HostObject primitive, String name, int arity, Solver.SolverInterface c) {
+    public static ObjectLabel createPrimitiveFunction(ObjectLabel target, ObjectLabel internal_proto, HostObject primitive, String name, int arity, Solver.SolverInterface c) {
         ObjectLabel objlabel = ObjectLabel.make(primitive, Kind.FUNCTION);
         c.getState().newObject(objlabel);
         createPrimitiveFunctionOrConstructor(target, internal_proto, name, arity, objlabel, c);
+        return objlabel;
     }
 
     /**

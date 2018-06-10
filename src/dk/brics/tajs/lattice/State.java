@@ -16,6 +16,9 @@
 
 package dk.brics.tajs.lattice;
 
+import dk.brics.tajs.analysis.CallbackCallInfo;
+import dk.brics.tajs.analysis.InitialStateBuilder;
+import dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
@@ -24,9 +27,11 @@ import dk.brics.tajs.lattice.PKey.SymbolPKey;
 import dk.brics.tajs.options.OptionValues;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.solver.BlockAndContext;
+import dk.brics.tajs.solver.CallbackGraph;
 import dk.brics.tajs.solver.GenericSolver;
 import dk.brics.tajs.solver.IState;
 import dk.brics.tajs.util.AnalysisException;
+import dk.brics.tajs.util.Chain;
 import dk.brics.tajs.util.Collectors;
 import dk.brics.tajs.util.Strings;
 import org.apache.log4j.Logger;
@@ -36,6 +41,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -43,6 +49,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static dk.brics.tajs.util.Collections.addToMapSet;
 import static dk.brics.tajs.util.Collections.newList;
@@ -71,10 +78,18 @@ public class State implements IState<State, Context, CallEdge> {
      */
     private Context context; // may be shared by other State objects
 
+    private CallbackContext callbackContext;
+
     /**
      * Map from ObjectLabel to Object.
      */
     private Map<ObjectLabel, Obj> store;
+
+    private Map<ObjectLabel, Set<QueueObject>> queue;
+
+    private Chain<QueueContext> queueChain;
+
+    private Chain<CallbackDescription> scheduledCallbacks;
 
     private Obj store_default; // either the none obj (for program entry) or the unknown obj (all other locations)
 
@@ -119,7 +134,8 @@ public class State implements IState<State, Context, CallEdge> {
 
     private static int number_of_makewritable_store;
 
-    private static int number_of_makewritable_registers; // TODO: currently not used
+    public static Map<ObjectLabel, QueueObject.Kind> QUEUE_OBJECT_KINDS = newMap();
+
 
     /**
      * Constructs a new none-state (representing the empty set of concrete states).
@@ -140,6 +156,7 @@ public class State implements IState<State, Context, CallEdge> {
         c = x.c;
         block = x.block;
         context = x.context;
+        callbackContext = x.callbackContext != null ? x.callbackContext.clone() : null;
         setToState(x);
         number_of_states_created++;
     }
@@ -159,10 +176,21 @@ public class State implements IState<State, Context, CallEdge> {
         summarized = new Summarized(x.summarized);
         store_default = x.store_default.freeze();
         extras = new StateExtras(x.extras);
-//        if (Options.get().isCopyOnWriteDisabled()) {
         store = newMap();
+        queue = new LinkedHashMap<>();
         for (Map.Entry<ObjectLabel, Obj> xs : x.store.entrySet())
             writeToStore(xs.getKey(), xs.getValue().freeze());
+        for (Map.Entry<ObjectLabel, Set<QueueObject>> ps: x.queue.entrySet())
+            this.queue.put(
+                    ps.getKey(),
+                    ps.getValue()
+                            .stream()
+                            .map(QueueObject::clone)
+                            .collect(Collectors.toSet()));
+        this.queueChain = x.queueChain != null ?
+                x.queueChain.clone() : null;
+        this.scheduledCallbacks = x.scheduledCallbacks != null ?
+                x.scheduledCallbacks.clone() : null;
         basis_store = x.basis_store;
         writable_store = true;
         execution_context = x.execution_context.clone();
@@ -170,17 +198,6 @@ public class State implements IState<State, Context, CallEdge> {
         writable_registers = true;
         stacked_objlabels = newSet(x.stacked_objlabels);
         writable_stacked_objlabels = true;
-//        } else {
-//            store = x.store;
-//            basis_store = x.basis_store;
-//            execution_context = x.execution_context;
-//            registers = x.registers;
-//            stacked_objlabels = x.stacked_objlabels;
-//            x.writable_execution_context = writable_execution_context = false;
-//            x.writable_store = writable_store = false;
-//            x.writable_registers = writable_registers = false;
-//            x.writable_stacked_objlabels = writable_stacked_objlabels = false;
-//        }
     }
 
     /**
@@ -205,6 +222,10 @@ public class State implements IState<State, Context, CallEdge> {
     @Override
     public Context getContext() {
         return context;
+    }
+
+    public CallbackContext getCallbackContext() {
+        return this.callbackContext;
     }
 
     /**
@@ -235,12 +256,20 @@ public class State implements IState<State, Context, CallEdge> {
         this.context = context;
     }
 
+    public void setCallbackContext(CallbackContext context) {
+        this.callbackContext = context;
+    }
+
     /**
      * Returns the store (excluding the basis store).
      * Only for reading!
      */
     public Map<ObjectLabel, Obj> getStore() {
         return store;
+    }
+
+    public Map<ObjectLabel, Set<QueueObject>> getQueue() {
+        return this.queue;
     }
 
     /**
@@ -314,6 +343,468 @@ public class State implements IState<State, Context, CallEdge> {
         store_default = obj;
     }
 
+    public void appendToQueueChain(Set<ObjectLabel> objectLabels, boolean implicit) {
+        Set<QueueContext> queueContext = objectLabels
+                .stream()
+                .map(x -> new QueueContext(x, implicit))
+                .collect(Collectors.toSet());
+        if (this.queueChain == null)
+            this.queueChain = Chain.make(
+                    queueContext,
+                    null);
+        else
+            this.queueChain = Chain.appendElement(
+                    queueContext, this.queueChain);
+    }
+
+    public void popQueueChain() {
+        if (this.queueChain == null)
+            return;
+        this.queueChain = queueChain.getNext();
+    }
+
+    public boolean isQueueChainEmpty() {
+        if (this.queueChain == null)
+            return true;
+        boolean isEmpty = this.queueChain.isEmpty();
+        if (isEmpty && this.queueChain.getNext() != null)
+            throw new AnalysisException(
+                    "An empty queue chain with successors found");
+        return isEmpty;
+    }
+
+    private void appendToScheduledCallbacks(ObjectLabel queueObject,
+                                            QueueObject.QueueState state,
+                                            Set<CallbackExecutionInfo> callbacks,
+                                            Value settledBy,
+                                            final boolean restrictSchedule) {
+        if (callbacks == null || callbacks.isEmpty())
+            return;
+        Set<CallbackDescription> callbackDescs = callbacks
+                .stream()
+                .map(x -> new CallbackDescription(
+                        queueObject,
+                        state,
+                        x.getCallback(),
+                        x.getQueueObject(),
+                        settledBy
+                ))
+                .collect(Collectors.toSet());
+        this.appendToScheduledCallbacks(callbackDescs, restrictSchedule);
+
+    }
+
+    public void appendToScheduledCallbacks(Set<CallbackDescription> callbackDescs,
+                                           final boolean restrictSchedule) {
+        if (this.scheduledCallbacks != null) {
+            callbackDescs = callbackDescs
+                    .stream()
+                    .filter(x -> restrictSchedule ? this.isNewFlow(x)
+                            : !this.scheduledCallbacks.has(x))
+                    .collect(Collectors.toSet());
+            if (this.scheduledCallbacks.getLast().equals(callbackDescs))
+                callbackDescs.clear();
+        }
+        if (callbackDescs.isEmpty())
+            return;
+        Chain<CallbackDescription> newScheduledCallback = Chain.make(
+                callbackDescs, null);
+        if (this.scheduledCallbacks == null)
+            this.scheduledCallbacks = newScheduledCallback;
+        else {
+            if (this.scheduledCallbacks.size() >= Options.get().getBoundedSize()) {
+                this.scheduledCallbacks.appendLast(callbackDescs);
+            } else {
+                this.scheduledCallbacks.appendLast(newScheduledCallback);
+            }
+        }
+    }
+
+    private void addToQueue(ObjectLabel objectLabel,
+                            QueueObject.Kind kind) {
+        Obj obj = store.get(objectLabel);
+        if (obj == null)
+            throw new AnalysisException(
+                "You are going to put an object label in the queue "
+                    + "that was not found in the store: "
+                    + objectLabel.toString());
+        Set<QueueObject> queueObjects = this.queue.get(objectLabel);
+        QueueObject queueObject = new QueueObject(null, kind);
+        if (queueObjects != null) {
+            queueObjects.add(queueObject);
+            return;
+        }
+        queueObjects = newSet();
+        queueObjects.add(queueObject);
+        this.queue.put(objectLabel, queueObjects);
+    }
+
+    public void newQueueObject(ObjectLabel objectLabel) {
+        addToQueue(objectLabel, QueueObject.Kind.PROMISE);
+    }
+
+    public void newQueueObject(ObjectLabel objectLabel,
+                               QueueObject.Kind kind) {
+        addToQueue(objectLabel, kind);
+    }
+
+    public void addNewQueueObjectTo(ObjectLabel objectLabel,
+                                    QueueObject queueObject) {
+        Set<QueueObject> queueObjects = this.queue.get(objectLabel);
+        if (queueObjects == null)
+            throw new AnalysisException(
+                 "We cannot find queue object " + objectLabel.toString()
+                  + " in the queue");
+        Set<QueueObject> pendingObjs = queueObjects
+                .stream()
+                .filter(x -> !x.isSettled() && !x.isDependent())
+                .collect(java.util.stream.Collectors.toSet());
+        if (pendingObjs.size() == 0) {
+            queueObjects.add(queueObject);
+            return;
+        }
+        queueObjects.removeAll(pendingObjs);
+        for (QueueObject qObj: pendingObjs) {
+            QueueObject q = queueObject.clone();
+            q.setResolvedCallbacks(q.getResolvedCallbacks()
+                    .join(qObj.getResolvedCallbacks()));
+            q.setRejectedCallbacks(q.getRejectedCallbacks()
+                    .join(qObj.getRejectedCallbacks()));
+            if (q.getState() == QueueObject.QueueState.FULFILLED)
+                q.resolve(q.getDefaultValue(), false);
+            else if (q.getState() == QueueObject.QueueState.REJECTED)
+                q.reject(q.getDefaultValue(), false);
+            queueObjects.add(q);
+        }
+    }
+
+    public void addQueueObjects(ObjectLabel objectLabel,
+                                Set<QueueObject> queueObjects) {
+        this.queue.put(objectLabel, queueObjects);
+    }
+
+    public boolean isNewFlow(CallbackDescription desc) {
+        if (this.scheduledCallbacks != null) {
+            Set<CallbackDescription> callbackDescriptions =
+                    this.scheduledCallbacks.getAllElements();
+            return callbackDescriptions
+                    .stream().noneMatch(x -> x.getState()
+                            .equals(desc.getState()) && x.getCallback().equals(desc.getCallback()));
+        }
+        return true;
+    }
+
+    public void settleQueueObject(ObjectLabel objectLabel, Value value,
+                                  final boolean shouldResolve,
+                                  final boolean forceJoin,
+                                  Value settledBy,
+                                  final boolean restrictSchedule) {
+        Set<QueueObject> queueObjects = this.queue.get(objectLabel);
+        if (queueObjects == null)
+            throw new AnalysisException(
+                "We cannot resolve object " + objectLabel.toString()
+                + ": It was not found in the queue.");
+        QueueObject.QueueState nextState = shouldResolve ?
+                QueueObject.QueueState.FULFILLED : QueueObject.QueueState.REJECTED;
+        boolean hasState = queueObjects.
+                stream().anyMatch(x -> x.getState().equals(nextState));
+        for (QueueObject queueObject: queueObjects) {
+            if (queueObject.canBeSettledBy(settledBy, false)) {
+                QueueObject.QueueState prevState = queueObject.getState();
+                if (shouldResolve)
+                    queueObject.resolve(value, forceJoin);
+                else
+                    queueObject.reject(value, forceJoin);
+                HostObject hostObject = objectLabel.getHostObject();
+                boolean isNative = hostObject == ECMAScriptObjects.ASYNC_IO ||
+                        hostObject == ECMAScriptObjects.SET_TIMEOUT;
+                if (prevState == QueueObject.QueueState.PENDING && !isNative)
+                    this.appendToScheduledCallbacks(
+                            objectLabel,
+                            queueObject.getState(),
+                            queueObject.getCallbacks(),
+                            settledBy,
+                            restrictSchedule);
+                Set<ObjectLabel> dependentObjects = queueObject
+                        .getDependentObjects();
+                for (ObjectLabel dependentObj : dependentObjects) {
+                    this.settleQueueObject(dependentObj, value, shouldResolve,
+                                           forceJoin,
+                                           Value.makeObject(objectLabel),
+                                           restrictSchedule);
+                }
+            }
+        }
+        // It's a good idea to join queue objects after the settle.
+        QueueObject.Kind queueObjKind = QUEUE_OBJECT_KINDS
+                .getOrDefault(objectLabel, QueueObject.Kind.PROMISE);
+        Set<QueueObject> empty = newSet();
+        Set<QueueObject> jointObjects = QueueObject.join(
+                queueObjects, empty,
+                QueueObject.Join.DEFAULT, true,
+                queueObjKind);
+        this.addQueueObjects(objectLabel, jointObjects);
+    }
+
+    /**
+     * Settles all the queue objects specified in the top of
+     * the current queue chain based on the given value.
+     */
+    public void settleQueueObjects(
+            Value value, boolean shouldResolve,
+            Value settledBy,
+            boolean implicitOnly,
+            boolean restrictSchedule) {
+        if (this.queueChain == null)
+            return;
+        Set<QueueContext> queueContexts = this.queueChain.getTop();
+        if (queueContexts == null)
+            return;
+        for (QueueContext queueContext : queueContexts) {
+            if (implicitOnly && !queueContext.isImplicit())
+                continue;
+            this.settleByContext(value, queueContext,
+                    shouldResolve, settledBy, restrictSchedule);
+        }
+
+    }
+
+    private void settleByContext(Value value,
+                                 QueueContext queueContext,
+                                 boolean shouldResolve,
+                                 Value settledBy,
+                                 boolean restrictSchedule) {
+        if (value.isMaybePromise()) {
+            // TODO revisit
+            Set<QueueObject> queueObjects = this.queue.get(
+                    queueContext.getQueueObject());
+            Value val = value.restrictToPromises();
+            boolean isPending = queueObjects
+                    .stream()
+                    .anyMatch(x -> !x.isSettled());
+            for (ObjectLabel l : val.getObjectLabels()) {
+                Set<QueueObject> qObjs = this.queue.get(l);
+                queueObjects = QueueObject.join(
+                        queueObjects,
+                        qObjs,
+                        QueueObject.Join.LEFT, true,
+                        QUEUE_OBJECT_KINDS.getOrDefault(l, QueueObject.Kind.PROMISE));
+                for (QueueObject q : qObjs)
+                    if (!q.isSettled())
+                        q.addDependentObject(queueContext.getQueueObject());
+            }
+            if (isPending && queueObjects.stream().allMatch(QueueObject::isSettled)) {
+                Set<CallbackDescription> callbacks = QueueObject
+                        .toScheduledCallbacks(queueContext.getQueueObject(),
+                                              queueObjects, settledBy);
+                if (!restrictSchedule)
+                    this.appendToScheduledCallbacks(callbacks, restrictSchedule);
+            }
+            this.addQueueObjects(
+                    queueContext.getQueueObject(), queueObjects);
+        }
+        if (value.isMaybeNonPromise()) {
+            Value val = value.restrictToNonPromises();
+            this.settleQueueObject(queueContext.getQueueObject(),
+                    val, shouldResolve, true,
+                    settledBy, restrictSchedule);
+        }
+    }
+
+    public void settleQueueObject(ObjectLabel objectLabel, Value value,
+                                  final boolean shouldResolve,
+                                  Value settledBy,
+                                  final boolean restrictSchedule) {
+        this.settleQueueObject(objectLabel, value, shouldResolve, false,
+                               settledBy, restrictSchedule);
+    }
+
+    public void registerCallback(ObjectLabel objectLabel,
+                                 Value callback,
+                                 ObjectLabel thisObj,
+                                 ObjectLabel queueObj,
+                                 List<Value> args,
+                                 final boolean onFulfill,
+                                 final boolean implicit) {
+        Set<QueueObject> queueObjects = this.queue.get(objectLabel);
+        if (queueObjects == null)
+            throw new AnalysisException(
+                    "We cannot add callback " + callback.toString()
+                    + " to object " + objectLabel.toString()
+                    + " because the latter was not found in the queue.");
+        for (QueueObject queueObject: queueObjects) {
+            CallbackExecutionInfo clbInfo = CallbackExecutionInfo
+                    .make(callback, thisObj, queueObj, implicit);
+            HostObject hostObject = objectLabel.getHostObject();
+            boolean isNative = hostObject == ECMAScriptObjects.ASYNC_IO ||
+                    hostObject == ECMAScriptObjects.SET_TIMEOUT;
+            if (queueObject.isSettled() && !isNative) {
+                if ((queueObject.getState() == QueueObject.QueueState.FULFILLED && onFulfill)
+                    || queueObject.getState() == QueueObject.QueueState.REJECTED && !onFulfill)
+                    this.appendToScheduledCallbacks(
+                            objectLabel, queueObject.getState(),
+                            Collections.singleton(clbInfo), null, false);
+            }
+            if (onFulfill)
+                queueObject.addResolvedCallback(clbInfo, args);
+            else
+                queueObject.addRejectedCallback(clbInfo, args);
+        }
+    }
+
+    public void onResolve(ObjectLabel queueObj, Value callback,
+                          ObjectLabel thisObj, ObjectLabel dependentObj,
+                          List<Value> args, boolean implicit) {
+        this.registerCallback(queueObj, callback, thisObj, dependentObj, args,
+                             true, implicit);
+    }
+
+    public void onReject(ObjectLabel queueObj, Value callback,
+                         ObjectLabel thisObj, ObjectLabel dependentObj,
+                         List<Value> args, boolean implicit) {
+        this.registerCallback(queueObj, callback, thisObj, dependentObj, args,
+                             false, implicit);
+    }
+
+    private Set<List<CallbackCallInfo>> getNextCallbacksToRun(
+            Set<ObjectLabel> objectLabels) {
+        Set<List<CallbackCallInfo>> scheduledCallbacks = newSet();
+        for (ObjectLabel objectLabel : objectLabels) {
+            Set<QueueObject> queueObjects = this.queue.get(objectLabel);
+            if (queueObjects == null)
+                throw new AnalysisException(
+                        "Object Label " + objectLabel.toString()
+                        + " is not in the queue");
+            for (QueueObject queueObject : queueObjects) {
+
+                if (queueObject.hasCallbacksToRun()) {
+                    // FIXME
+                    Set<List<CallbackCallInfo>> callbacks = queueObject
+                            .getCallbacksOrder()
+                            .stream()
+                            .map(x -> IntStream.range(0, x.size())
+                                    .mapToObj(i -> new CallbackCallInfo(
+                                            x.get(i).getCallback(),
+                                            x.get(i).getArgs(),
+                                            Collections.singleton(x.get(i).getThisObj()),
+                                            Collections.singleton(objectLabel),
+                                            Collections.singleton(x.get(i).getQueueObject()),
+                                            x.get(i).isImplicit(),
+                                            new NativeCallbackContext(i, false)
+                                    ))
+                                    .collect(Collectors.toList()))
+                            .collect(Collectors.toSet());
+                    if (!callbacks.isEmpty())
+                        scheduledCallbacks.addAll(callbacks);
+                }
+            }
+        }
+        return scheduledCallbacks;
+    }
+
+    private Chain<CallbackCallInfo> extractCallbackExecutionInfo() {
+        Chain<CallbackCallInfo> callbacks = null;
+        Chain<CallbackDescription> scheduledCallbacks = this.scheduledCallbacks;
+        int i = 0;
+        while (scheduledCallbacks != null) {
+            Set<CallbackDescription> top = scheduledCallbacks.getTop();
+            if (top == null)
+                throw new AnalysisException("Top is empty");
+            Set<CallbackCallInfo> callbackInfos = newSet();
+            for (CallbackDescription x : top) {
+                Set<QueueObject> queueObjects = this.queue.get(
+                        x.getQueueObject());
+                if (queueObjects == null)
+                    throw new AnalysisException("It is not a queue object");
+                boolean found = false;
+                for (QueueObject queueObject : queueObjects) {
+                    if (queueObject.getState() != x.getState())
+                        continue;
+                    int finalI = i;
+                    Set<CallbackCallInfo> filteredCallbacks = queueObject
+                            .getCallbacks()
+                            .stream()
+                            .filter(y -> y.getQueueObject().equals(x.getDependentQueueObject())
+                                    && y.getCallback().equals(x.getCallback()))
+                            .map(y -> new CallbackCallInfo(
+                                    y.getCallback(),
+                                    y.getArgs(),
+                                    Collections.singleton(y.getThisObj()),
+                                    Collections.singleton(x.getQueueObject()),
+                                    Collections.singleton(y.getQueueObject()),
+                                    y.isImplicit(),
+                                    new NativeCallbackContext(finalI, true)
+                            ))
+                            .collect(java.util.stream.Collectors.toSet());
+                    if (filteredCallbacks.size() != 1) {
+                        throw new AnalysisException("Multiple callbacks found");
+                    }
+                    found = true;
+                    callbackInfos.add(filteredCallbacks.iterator().next());
+                    break;
+                }
+                if (!found)
+                    throw new AnalysisException("Callback not found");
+            }
+            Chain<CallbackCallInfo> newChain = Chain.make(
+                    callbackInfos, null);
+            if (callbacks == null)
+                callbacks = newChain;
+            else
+                callbacks.appendLast(newChain);
+            i++;
+            scheduledCallbacks = scheduledCallbacks.getNext();
+        }
+        return callbacks;
+    }
+
+    /**
+     * Returns the next callbacks to be executed by the event loop.
+     */
+    public Set<CallbackGraph.CallbackGraphNode> getNextCallbacksToRun() {
+        Chain<CallbackCallInfo> chain = extractCallbackExecutionInfo();
+        Chain<CallbackCallInfo> nonExecuted = null;
+        CallbackGraph callbackGraph = this.c.getAnalysisLatticeElement()
+                .getCallbackGraph();
+        if (chain != null)
+            nonExecuted = callbackGraph.getDiffPromises(chain);
+        callbackGraph.setCurrPromiseChain(chain);
+        callbackGraph.preBuild();
+        callbackGraph.commitScheduledPlans();
+        Set<CallbackGraph.CallbackGraphNode> calls = null;
+        if (chain != null)
+            calls = callbackGraph.genCallbackGraphNodes(
+                    chain.getAllElements());
+        if (nonExecuted != null) {
+            Set<CallbackGraph.CallbackGraphNode> nonExecutedCalls = callbackGraph
+                    .genCallbackGraphNodes(nonExecuted.getAllElements());
+            callbackGraph.toCallbackGraph(nonExecuted);
+            callbackGraph.resetAnalyzed(nonExecutedCalls);
+            calls.removeAll(nonExecutedCalls);
+        }
+        if (calls != null)
+            callbackGraph.markAnalyzed(calls);
+        if (nonExecuted == null) {
+            Set<ObjectLabel> objectLabels = newSet();
+            objectLabels.add(InitialStateBuilder.SET_TIMEOUT_QUEUE_OBJ);
+            objectLabels.add(InitialStateBuilder.ASYNC_IO);
+            Chain<CallbackCallInfo> c = Chain.
+                    toChain(this.getNextCallbacksToRun(objectLabels));
+            if (c != null) {
+                Chain<CallbackCallInfo> n = callbackGraph
+                        .getDiffTimers(c);
+                if (n != null)
+                    callbackGraph.toCallbackGraph(n);
+            }
+            callbackGraph.setCurrTimeIOChain(c);
+            callbackGraph.commitScheduledPlans();
+        }
+        callbackGraph.resetStates();
+        if (!Options.get().isCallbackSensitivityDisabled())
+            return callbackGraph.getFirstCalls();
+        return callbackGraph.getAllCallbacks();
+    }
+
     /**
      * Removes objects that are equal to the default object.
      */
@@ -382,7 +873,6 @@ public class State implements IState<State, Context, CallEdge> {
             return;
         registers = newList(registers);
         writable_registers = true;
-        number_of_makewritable_registers++;
     }
 
     /**
@@ -426,7 +916,6 @@ public class State implements IState<State, Context, CallEdge> {
     public static void reset() {
         number_of_states_created = 0;
         number_of_makewritable_store = 0;
-        number_of_makewritable_registers = 0;
     }
 
     /**
@@ -464,347 +953,24 @@ public class State implements IState<State, Context, CallEdge> {
         basis_store = null;
         summarized.clear();
         extras.setToBottom();
-//        if (Options.get().isCopyOnWriteDisabled()) {
         store = newMap();
+        queue = new LinkedHashMap<>();
+        queueChain = null;
+        scheduledCallbacks = null;
         writable_store = true;
         registers = new ArrayList<>();
         writable_registers = true;
         stacked_objlabels = newSet();
         writable_stacked_objlabels = true;
-//        } else {
-//            store = Collections.emptyMap();
-//            writable_store = false;
-//            registers = Collections.emptyList();
-//            writable_registers = false;
-//            stacked_objlabels = Collections.emptySet();
-//            writable_stacked_objlabels = false;
-//        }
         execution_context = new ExecutionContext();
         writable_execution_context = true;
         store_default = Obj.makeNone();
     }
 
-//    /**
-//     * Sets all object properties to 'unknown'.
-//     */
-//    public void setToUnknown() { // TODO: currently unused
-//        if (!Options.get().isLazyDisabled()) {
-//            store = newMap();
-//            store_default = Obj.makeUnknown();
-//            writable_store = true;
-//            registers = Collections.emptyList();
-//            writable_registers = false;
-//        }
-//    }
-
     @Override
     public boolean isBottom() {
         return execution_context.isEmpty();
     }
-
-//    /**
-//     * Merges the modified parts of other state into this one.
-//     * When both this and other write to the same location, take the least upper bound.
-//     * Also merges reads_other into reads.
-//     *
-//     * @return true if read/write conflict, i.e. writes of this overlap with reads_other or writes of other overlap with reads.
-//     */
-//    public boolean mergeForInSpecialization(State other,
-//                                            State reads,
-//                                            State reads_other,
-//                                            boolean careAboutConflicts, boolean mergeWritesWeakly, boolean overrideWrites) { // (currently unused)
-//        makeWritableStore();
-//        if (basis_store != other.basis_store)
-//            throw new AnalysisException("Not identical basis stores");
-//        if (log.isDebugEnabled()) {
-//            // assuming that store_default, execution_context, stacked_objlabels, and registers are identical in this and other
-//            if (!store_default.equals(other.store_default) ||
-//                    !execution_context.equals(other.execution_context) ||
-//                    !stacked_objlabels.equals(other.stacked_objlabels) ||
-//                    !reads.store_default.equals(reads_other.store_default) ||
-//                    !reads.execution_context.equals(reads_other.execution_context) ||
-//                    !reads.stacked_objlabels.equals(reads_other.stacked_objlabels))
-//                throw new AnalysisException("Not identical store_default / execution_context / stacked_objlabels");
-//        }
-//        boolean conflict = false;
-//        if (careAboutConflicts && !(extras.equals(other.extras))) {
-//            log.debug("mergeForInSpecialization: conflict at state extras");
-//            conflict = true;
-//        }
-//        // report conflict if writes of this overlap with reads_other or writes of other overlap with reads
-//        if (careAboutConflicts && (checkReadWriteConflict(this, reads_other) || checkReadWriteConflict(other, reads))) {
-//            log.debug("mergeForInSpecialization: read/write conflict");
-//            conflict = true;
-//        }
-//        // merge reads_other into reads (if both read, take least upper bound)
-//        for (Map.Entry<ObjectLabel, Obj> me : reads_other.store.entrySet()) {
-//            ObjectLabel objlabel = me.getKey();
-//            Obj reads_other_obj = me.getValue();
-//            Obj reads_obj = reads.getObject(objlabel, true);
-//            for (Map.Entry<PKey, Value> me2 : reads_other_obj.getProperties().entrySet()) {
-//                String propertyname = me2.getKey();
-//                Value other_val = me2.getValue();
-//                if (!other_val.isUnknown()) {
-//                    Value reads_val = reads_obj.getProperty(propertyname);
-//                    Value new_reads_val = reads_val.join(other_val);
-//                    reads_obj.setProperty(propertyname, new_reads_val);
-//                }
-//            }
-//            Value reads_other_defaultarray_val = reads_other_obj.getDefaultArrayProperty();
-//            if (!reads_other_defaultarray_val.isUnknown()) {
-//                reads_obj.setDefaultArrayProperty(reads_other_defaultarray_val);
-//                // also merge with the explicit array properties in reads_obj that are not already handled
-//                for (Map.Entry<PKey, Value> me2 : reads_obj.getProperties().entrySet()) {
-//                    PKey propertyname = me2.getKey();
-//                    if (propertyname.isArrayIndex() && !reads_other_obj.getProperties().containsKey(propertyname)) {
-//                        Value reads_val = me2.getValue();
-//                        Value new_reads_val = reads_val.join(reads_other_defaultarray_val);
-//                        reads_obj.setProperty(propertyname, new_reads_val);
-//                    }
-//                }
-//            }
-//            Value reads_other_defaultnonarray_val = reads_other_obj.getDefaultNonArrayProperty();
-//            if (!reads_other_defaultnonarray_val.isUnknown()) {
-//                reads_obj.setDefaultNonArrayProperty(reads_other_defaultnonarray_val);
-//                // also merge with the explicit array properties in reads_obj that are not already handled
-//                for (Map.Entry<PKey, Value> me2 : reads_obj.getProperties().entrySet()) {
-//                    PKey propertyname = me2.getKey();
-//                    if (!propertyname.isArrayIndex() && !reads_other_obj.getProperties().containsKey(propertyname)) {
-//                        Value reads_val = me2.getValue();
-//                        Value new_reads_val = reads_val.join(reads_other_defaultnonarray_val);
-//                        reads_obj.setProperty(propertyname, new_reads_val);
-//                    }
-//                }
-//            }
-//            Value reads_other_internalprototype_val = reads_other_obj.getInternalPrototype();
-//            if (!reads_other_internalprototype_val.isUnknown()) {
-//                Value reads_internalprototype_val = reads_obj.getInternalPrototype();
-//                Value new_reads_internalprototype_val = reads_internalprototype_val.join(reads_other_internalprototype_val);
-//                reads_obj.setInternalPrototype(new_reads_internalprototype_val);
-//            }
-//            Value reads_other_internalvalue_val = reads_other_obj.getInternalValue();
-//            if (!reads_other_internalvalue_val.isUnknown()) {
-//                Value reads_internalvalue_val = reads_obj.getInternalValue();
-//                Value new_reads_internalvalue_val = reads_internalvalue_val.join(reads_other_internalvalue_val);
-//                reads_obj.setInternalValue(new_reads_internalvalue_val);
-//            }
-//            if (!reads_other_obj.isScopeChainUnknown()) {
-//                ScopeChain new_reads_scopechain;
-//                if (!reads_obj.isScopeChainUnknown()) {
-//                    new_reads_scopechain = ScopeChain.add(reads_obj.getScopeChain(), reads_other_obj.getScopeChain());
-//                } else {
-//                    new_reads_scopechain = reads_other_obj.getScopeChain();
-//                }
-//                reads_obj.setScopeChain(new_reads_scopechain);
-//            }
-//        }
-//        // merge writes of other into this (if both write, take least upper bound)
-//        for (Map.Entry<ObjectLabel, Obj> me : other.store.entrySet()) {
-//            ObjectLabel objlabel = me.getKey();
-//            Obj other_obj = me.getValue();
-//            Obj this_obj = getObject(objlabel, true);
-//            // merge properties of other_obj into this_obj
-//            for (Map.Entry<PKey, Value> me2 : other_obj.getProperties().entrySet()) {
-//                PKey propertyname = me2.getKey();
-//                Value other_val = me2.getValue();
-//                if (other_val.isMaybeModified()) {
-//                    Value this_val = this_obj.getProperty(propertyname);
-//                    Value new_this_val = mergeForInSpecializationValue(this_val, other_val, other, mergeWritesWeakly, overrideWrites);
-//                    this_obj.setProperty(propertyname, new_this_val);
-//                }
-//            }
-//            Value other_defaultarray_val = other_obj.getDefaultArrayProperty();
-//            if (other_defaultarray_val.isMaybeModified()) {
-//                Value this_defaultarray_val = this_obj.getDefaultArrayProperty();
-//                Value new_this_defaultarray_val = mergeForInSpecializationValue(this_defaultarray_val, other_defaultarray_val, other, mergeWritesWeakly, overrideWrites);
-//                this_obj.setDefaultArrayProperty(new_this_defaultarray_val);
-//                // also merge with the explicit array properties in this_obj that are not already handled
-//                for (Map.Entry<PKey, Value> me2 : this_obj.getProperties().entrySet()) {
-//                    PKey propertyname = me2.getKey();
-//                    if (propertyname.isArrayIndex() && !other_obj.getProperties().containsKey(propertyname)) {
-//                        Value this_val = me2.getValue();
-//                        Value new_this_val = mergeForInSpecializationValue(this_val, other_defaultarray_val, other, mergeWritesWeakly, overrideWrites);
-//                        this_obj.setProperty(propertyname, new_this_val);
-//                    }
-//                }
-//            }
-//            Value other_defaultnonarray_val = other_obj.getDefaultNonArrayProperty();
-//            if (other_defaultnonarray_val.isMaybeModified()) {
-//                Value this_defaultnonarray_val = this_obj.getDefaultNonArrayProperty();
-//                Value new_this_defaultnonarray_val = mergeForInSpecializationValue(this_defaultnonarray_val, other_defaultnonarray_val, other, mergeWritesWeakly, overrideWrites);
-//                this_obj.setDefaultNonArrayProperty(new_this_defaultnonarray_val);
-//                // also merge with the explicit array properties in this_obj that are not already handled
-//                for (Map.Entry<PKey, Value> me2 : this_obj.getProperties().entrySet()) {
-//                    PKey propertyname = me2.getKey();
-//                    if (!propertyname.isArrayIndex() && !other_obj.getProperties().containsKey(propertyname)) {
-//                        Value this_val = me2.getValue();
-//                        Value new_this_val = mergeForInSpecializationValue(this_val, other_defaultarray_val, other, mergeWritesWeakly, overrideWrites);
-//                        this_obj.setProperty(propertyname, new_this_val);
-//                    }
-//                }
-//            }
-//            Value other_internalprototype_val = other_obj.getInternalPrototype();
-//            if (other_internalprototype_val.isMaybeModified()) {
-//                Value this_internalprototype_val = this_obj.getInternalPrototype();
-//                Value new_this_internalprototype_val = mergeForInSpecializationValue(this_internalprototype_val, other_internalprototype_val, other, mergeWritesWeakly, overrideWrites);
-//                this_obj.setInternalPrototype(new_this_internalprototype_val);
-//            }
-//            Value other_internalvalue_val = other_obj.getInternalValue();
-//            if (other_internalvalue_val.isMaybeModified()) {
-//                Value this_internalvalue_val = this_obj.getInternalValue();
-//                Value new_this_internalvalue_val = mergeForInSpecializationValue(this_internalvalue_val, other_internalvalue_val, other, mergeWritesWeakly, overrideWrites);
-//                this_obj.setInternalValue(new_this_internalvalue_val);
-//            }
-//            if (!other_obj.isScopeChainUnknown()) {
-//                ScopeChain new_this_scopechain;
-//                if (!this_obj.isScopeChainUnknown()) {
-//                    new_this_scopechain = ScopeChain.add(this_obj.getScopeChain(), other_obj.getScopeChain());
-//                } else {
-//                    new_this_scopechain = other_obj.getScopeChain();
-//                }
-//                this_obj.setScopeChain(new_this_scopechain);
-//            }
-//        }
-//        summarized.getMaybeSummarized().addAll(other.summarized.getMaybeSummarized());
-//        summarized.getDefinitelySummarized().addAll(other.summarized.getDefinitelySummarized());
-//        return conflict;
-//    }
-
-//    /**
-//     * Checks whether modified parts of the writes store overlap with the non-unknown parts of the reads store.
-//     *
-//     * @return true if conflict
-//     */
-//    private static boolean checkReadWriteConflict(State writes, State reads) { // (currently unused)
-//        for (Map.Entry<ObjectLabel, Obj> me : writes.store.entrySet()) {
-//            ObjectLabel objlabel = me.getKey();
-//            Obj writes_obj = me.getValue();
-//            Obj reads_obj = reads.getObject(objlabel, true);
-//            for (Map.Entry<PKey, Value> me2 : writes_obj.getProperties().entrySet()) {
-//                PKey propertyname = me2.getKey();
-//                Value writes_val = me2.getValue();
-//                if (writes_val.isMaybeModified()) {
-//                    Value reads_val = reads_obj.getProperty(propertyname);
-//                    if (checkReadWriteConflictValue(writes_val, reads_val)) {
-//                        if (log.isDebugEnabled())
-//                            log.debug("checkReadWriteConflict: writing " + writes_val + " reading " + reads_val + " from " + objlabel + "." + propertyname);
-//                        return true;
-//                    }
-//                }
-//            }
-//            Value writes_defaultarray_val = writes_obj.getDefaultArrayProperty();
-//            if (writes_defaultarray_val.isMaybeModified()) {
-//                Value reads_defaultarray_val = reads_obj.getDefaultArrayProperty();
-//                if (checkReadWriteConflictValue(writes_defaultarray_val, reads_defaultarray_val)) {
-//                    if (log.isDebugEnabled())
-//                        log.debug("checkReadWriteConflict: writing " + writes_defaultarray_val + " reading " + reads_defaultarray_val + " from " + objlabel + ".[[defaultarray]]");
-//                    return true;
-//                }
-//                // also check the explicit array properties in reads_obj that are not already handled
-//                for (Map.Entry<PKey, Value> me2 : reads_obj.getProperties().entrySet()) {
-//                    PKey propertyname = me2.getKey();
-//                    if (propertyname.isArrayIndex() && !writes_obj.getProperties().containsKey(propertyname)) {
-//                        Value reads_val = me2.getValue();
-//                        if (checkReadWriteConflictValue(writes_defaultarray_val, reads_val)) {
-//                            if (log.isDebugEnabled())
-//                                log.debug("checkReadWriteConflict: writing " + writes_defaultarray_val + " reading " + reads_val + " from " + objlabel + "." + propertyname);
-//                            return true;
-//                        }
-//                    }
-//                }
-//            }
-//            Value writes_defaultnonarray_val = writes_obj.getDefaultNonArrayProperty();
-//            if (writes_defaultnonarray_val.isMaybeModified()) {
-//                Value reads_defaultnonarray_val = reads_obj.getDefaultNonArrayProperty();
-//                if (checkReadWriteConflictValue(writes_defaultnonarray_val, reads_defaultnonarray_val)) {
-//                    if (log.isDebugEnabled())
-//                        log.debug("checkReadWriteConflict: writing " + writes_defaultnonarray_val + " reading " + reads_defaultnonarray_val + " from " + objlabel + ".[[defaultnonarray]]");
-//                    return true;
-//                }
-//                // also check the explicit nonarray properties in reads_obj that are not already handled
-//                for (Map.Entry<PKey, Value> me2 : reads_obj.getProperties().entrySet()) {
-//                    PKey propertyname = me2.getKey();
-//                    if (!propertyname.isArrayIndex() && !writes_obj.getProperties().containsKey(propertyname)) {
-//                        Value reads_val = me2.getValue();
-//                        if (checkReadWriteConflictValue(writes_defaultnonarray_val, reads_val)) {
-//                            if (log.isDebugEnabled())
-//                                log.debug("checkReadWriteConflict: writing " + writes_defaultnonarray_val + " reading " + reads_val + " from " + objlabel + "." + propertyname);
-//                            return true;
-//                        }
-//                    }
-//                }
-//            }
-//            Value writes_internalprototype_val = writes_obj.getInternalPrototype();
-//            if (writes_internalprototype_val.isMaybeModified()) {
-//                Value reads_internalprototype_val = reads_obj.getInternalPrototype();
-//                if (checkReadWriteConflictValue(writes_internalprototype_val, reads_internalprototype_val)) {
-//                    if (log.isDebugEnabled())
-//                        log.debug("checkReadWriteConflict: writing " + writes_internalprototype_val + " reading " + reads_internalprototype_val + " from " + objlabel + ".[[Prototype]]");
-//                    return true;
-//                }
-//            }
-//            Value writes_internalvalue_val = writes_obj.getInternalValue();
-//            if (writes_internalvalue_val.isMaybeModified()) {
-//                Value reads_internalvalue_val = reads_obj.getInternalValue();
-//                if (checkReadWriteConflictValue(writes_internalvalue_val, reads_internalvalue_val)) {
-//                    if (log.isDebugEnabled())
-//                        log.debug("checkReadWriteConflict: writing " + writes_internalvalue_val + " reading " + reads_internalvalue_val + " from " + objlabel + ".[[Value]]");
-//                    return true;
-//                }
-//            }
-//            if (!writes_obj.isScopeChainUnknown()) {
-//                if (!reads_obj.isScopeChainUnknown()) {
-//                    if (log.isDebugEnabled())
-//                        log.debug("checkReadWriteConflict: writing " + writes_obj.getScopeChain() + " reading " + reads_obj.getScopeChain() + " from " + objlabel + ".[[Scope]]");
-//                    return checkReadWriteConflictScopeChain(writes_obj.getScopeChain(), reads_obj.getScopeChain());
-//                }
-//            }
-//        }
-//        return false;
-//    }
-
-//    /**
-//     * Checks whether the written value may affect the read value.
-//     *
-//     * @return true if potential conflict, false if definitely no conflict
-//     */
-//    private static boolean checkReadWriteConflictValue(Value writes_val, Value reads_val) { // (currently unused)
-//        if (reads_val.isUnknown()) { // if reads_val is 'unknown', the location has not been read
-//            return false;
-//        }
-//        if (reads_val.isPolymorphic()) { // if reads_val is a polymorphic value, the location has been partially read (i.e. only its attributes)
-//            return !writes_val.lessEqualAttributes(reads_val);
-//        }
-//        return !writes_val.lessEqual(reads_val);
-//    }
-
-//    /**
-//     * Checks whether the written value may affect the read value.
-//     *
-//     * @return true if potential conflict, false if definitely no conflict
-//     */
-//    private static boolean checkReadWriteConflictScopeChain(ScopeChain writes_scope, ScopeChain reads_scope) { // (currently unused)
-//        return !((writes_scope == null && reads_scope == null) || (writes_scope != null && writes_scope.equals(reads_scope)));
-//    }
-
-//    /**
-//     * Merges this value with the other value.
-//     * Assumes that the other value is maybe modified.
-//     * This value is ignored if it is not maybe modified.
-//     */
-//    private Value mergeForInSpecializationValue(Value this_val, Value other_val, State other, boolean mergeWritesWeakly, boolean overrideWrites) { // (currently unused)
-//        Value new_this_val;
-//        if (!overrideWrites && (mergeWritesWeakly || this_val.isMaybeModified())) {
-//            // maybe modified in this state and in other state, so join the two values
-//            this_val = UnknownValueResolver.getRealValue(this_val, this);
-//            other_val = UnknownValueResolver.getRealValue(other_val, other);
-//            new_this_val = this_val.join(other_val);
-//        } else {
-//            // not modified in this state, so get the value directly from the other state
-//            new_this_val = other_val;
-//        }
-//        return new_this_val;
-//    }
 
     /**
      * Propagates the given state into this state.
@@ -845,6 +1011,20 @@ public class State implements IState<State, Context, CallEdge> {
         if (Options.get().isLazyDisabled())
             changed |= stacked_objlabels.addAll(s.stacked_objlabels);
         changed |= extras.propagate(s.extras);
+        boolean queueChanged = propagateQueue(s.queue);
+        if (!funentry)
+            // TODO revisit
+            changed |= queueChanged;
+        Chain<QueueContext> newChain = Chain.join(
+                this.queueChain, s.queueChain, true);
+        changed |= newChain != null && !newChain.equals(this.queueChain);
+        this.queueChain = newChain;
+
+        Chain<CallbackDescription> newScheduledCallbacks = Chain.join(
+                this.scheduledCallbacks, s.scheduledCallbacks, false);
+        changed |= newScheduledCallbacks != null && !newScheduledCallbacks.equals(
+                this.scheduledCallbacks);
+        this.scheduledCallbacks = newScheduledCallbacks;
         if (!funentry) {
             for (int i = 0; i < registers.size() || i < s.registers.size(); i++) {
                 Value v1 = i < registers.size() ? registers.get(i) : null;
@@ -882,6 +1062,42 @@ public class State implements IState<State, Context, CallEdge> {
             else
                 log.debug("propagate(...)");
         }
+        return changed;
+    }
+
+    private boolean propagateQueue(Map<ObjectLabel, Set<QueueObject>> queueFrom) {
+        boolean changed = false;
+        Map<ObjectLabel, Set<QueueObject>> newQueue = new LinkedHashMap<>();
+        for (Map.Entry<ObjectLabel, Set<QueueObject>> qs: queueFrom.entrySet()) {
+            Set<QueueObject> queueObjects = this.queue.get(qs.getKey());
+            newQueue.put(qs.getKey(), newSet());
+            if (queueObjects == null) {
+                changed = true;
+                newQueue.put(qs.getKey(), qs.getValue());
+                continue;
+            }
+            newQueue.get(qs.getKey()).addAll(
+                    QueueObject.join(queueObjects, qs.getValue(),
+                                     QueueObject.Join.DEFAULT,
+                                     false,
+                                     QUEUE_OBJECT_KINDS.getOrDefault(
+                                             qs.getKey(), QueueObject.Kind.PROMISE)));
+            for (QueueObject qObj: qs.getValue()) {
+                if (!qObj.isIncluded(queueObjects)) {
+                    changed = true;
+                }
+            }
+        }
+        for (Map.Entry<ObjectLabel, Set<QueueObject>> qs: this.queue.entrySet()) {
+            Set<QueueObject> queueObjects = queueFrom.get(qs.getKey());
+            if (queueObjects == null) {
+                changed = true;
+                newQueue.put(qs.getKey(), qs.getValue());
+            }
+
+        }
+        if (changed)
+            this.queue = newQueue;
         return changed;
     }
 
@@ -1365,6 +1581,72 @@ public class State implements IState<State, Context, CallEdge> {
             log.debug("materializeObj(" + summary + ")");
         return singleton;
     }
+
+    public void replaceQueueObjectFromScheduledCallbacks(
+            ObjectLabel singleton, ObjectLabel summary) {
+        if (this.scheduledCallbacks == null)
+            return;
+        Chain<CallbackDescription> scheduledCallbacks = this
+                .scheduledCallbacks;
+        while (scheduledCallbacks != null) {
+            Set<CallbackDescription> descs = scheduledCallbacks
+                    .getTop();
+            for (CallbackDescription callbackDesc : descs)
+                callbackDesc.replaceObjectLabel(singleton, summary);
+            scheduledCallbacks = scheduledCallbacks.getNext();
+        }
+    }
+
+    private void replaceQueueChain(ObjectLabel singleton,
+                                   ObjectLabel summary) {
+        Chain<QueueContext> queueContexts = this.queueChain;
+        while (queueContexts != null) {
+            Set<QueueContext> top = queueContexts
+                    .getTop();
+            for (QueueContext queueContext : top)
+                queueContext.replaceObjectLabel(singleton, summary);
+            queueContexts = queueContexts.getNext();
+        }
+    }
+
+    public void removeQueueObject(ObjectLabel singleton, ObjectLabel summary,
+                                  boolean flag) {
+        if (!this.queue.containsKey(singleton))
+            return;
+        this.queue.remove(singleton);
+        for (Map.Entry<ObjectLabel, Set<QueueObject>> qs : this.queue.entrySet()) {
+            for (QueueObject qObj : qs.getValue()) {
+                qObj.replaceObjectLabel(singleton, summary);
+            }
+        }
+        if (!flag)
+            return;
+        replaceQueueObjectFromScheduledCallbacks(singleton, summary);
+        //CallbackGraph callbackGraph = this.c
+        //        .getAnalysisLatticeElement().getCallbackGraph();
+        //if (callbackGraph != null && !c.isScanning())
+        //    callbackGraph.replaceCallbackGraph(singleton, summary);
+        //if (this.callbackContext != null)
+        //    callbackContext.replaceObjectLabels(singleton, summary);
+        //if (queueChain != null)
+        //    replaceQueueChain(singleton, summary);
+    }
+
+    public void summarizeQueue(ObjectLabel singleton, ObjectLabel summary) {
+        Set<QueueObject> queueObjects = this.queue.get(singleton);
+        if (queueObjects != null
+                && this.queue.containsKey(singleton)) {
+            Set<QueueObject> summaryQueueObjs = this.queue.get(summary);
+            Set<QueueObject> joint = QueueObject.join(
+                    queueObjects,
+                    summaryQueueObjs == null ? newSet() : summaryQueueObjs,
+                    QueueObject.Join.DEFAULT, false,
+                    QueueObject.Kind.PROMISE);
+            this.queue.put(summary, joint);
+        }
+
+    }
+
     /**
      * Adds an object label, representing a new empty object, to the store.
      * Takes recency abstraction into account.
@@ -1403,6 +1685,8 @@ public class State implements IState<State, Context, CallEdge> {
     private void summarizeObj(ObjectLabel singleton, ObjectLabel summary, Obj newObj) {
         Obj oldobj = getObject(singleton, false);
         if (!oldobj.isSomeNone()) {
+            this.summarizeQueue(singleton, summary);
+            this.removeQueueObject(singleton, summary, true);
             // join singleton object into its summary object
             // FIXME Support c.getMonitoring().visitRenameObject(c.getNode(), singleton, summary, this); (GitHub #413)
             propagateObj(summary, this, singleton, true);
@@ -1682,6 +1966,17 @@ public class State implements IState<State, Context, CallEdge> {
     }
 
     /**
+     * Returns the queue chain.
+     */
+    public Chain<QueueContext> getQueueChain() {
+        return this.queueChain;
+    }
+
+    public Chain<CallbackDescription> getScheduledCallbacks() {
+        return this.scheduledCallbacks;
+    }
+
+    /**
      * Pushes a new item onto the scope chain.
      */
     public void pushScopeChain(Set<ObjectLabel> objlabels) {
@@ -1713,31 +2008,13 @@ public class State implements IState<State, Context, CallEdge> {
         writable_execution_context = true;
     }
 
-//    protected void remove(State other) { // (currently unused)
-//        makeWritableStore();
-//        makeWritableExecutionContext();
-//        makeWritableRegisters();
-//        makeWritableStackedObjects();
-//        store_default = new Obj(store_default);
-//        store_default.remove(other.store_default);
-//        for (ObjectLabel objlabel : store.keySet()) {
-//            Obj obj = getObject(objlabel, true);
-//            Obj other_obj = other.getObject(objlabel, false);
-//            obj.remove(other_obj);
-//        }
-//        execution_context.remove(other.execution_context);
-//        // don't remove from summarized (lattice order of definitely_summarized is reversed, so removal isn't trivial)
-//        for (int i = 0; i < registers.size(); i++) {
-//            Value v_this = registers.get(i);
-//            if (v_this != null) {
-//                Value v_other = other.registers.get(i);
-//                if (v_other != null)
-//                    registers.set(i, v_this.remove(v_other));
-//            }
-//        }
-//        stacked_objlabels.removeAll(other.stacked_objlabels);
-//        extras.remove(other.extras);
-//    }
+    public void setQueueChain(Chain<QueueContext> queueChain) {
+        this.queueChain = queueChain;
+    }
+
+    public void setScheduledCallbacks(Chain<CallbackDescription> scheduledCallbacks) {
+        this.scheduledCallbacks = scheduledCallbacks;
+    }
 
     /**
      * Returns a string description of the differences between this state and the given one.
@@ -1974,72 +2251,13 @@ public class State implements IState<State, Context, CallEdge> {
         return Strings.escape(s).replace("|", " \\| ");
     }
 
-// TODO: toDotDOM() ?
-//    public String toDotDOM() { // (currently unused)
-//           StringBuilder ns = new StringBuilder("\n\t/* Nodes */\n");
-//        StringBuilder es = new StringBuilder("\n\t/* Edges */\n");
-//
-//        for (Map.Entry<ObjectLabel, Obj> e : sortedEntries(store)) {
-//            ObjectLabel label = e.getKey();
-//            Obj object = e.getValue();
-//            if (!label.isHostObject()) {
-//                // Ignore non-host objects
-//                continue;
-//            }
-//            if (object.getInternalPrototype().getObjectLabels().contains(FUNCTION_PROTOTYPE)) {
-//                // Ignore functions objects
-//                continue;
-//            }
-//            if (Options.get().isDOMEnabled()) {
-//                if ((label.getHostObject().getAPI() != HostAPIs.DOCUMENT_OBJECT_MODEL
-//                        && label.getHostObject().getAPI() != HostAPIs.DSL_OBJECT_MODEL)) {
-//                    // Ignore non-DOM objects (if DOM is enabled)
-//                    continue;
-//                }
-//            }
-//
-//            // Build label (i.e. the box)
-//            // The intended format is: FOO [shape=record label="{NAME\lEntry_1\lEntry2\l}"]
-//            String name = label.toString();
-//            StringBuilder lbl = new StringBuilder();
-//            lbl.append(name);
-//            Map<String, Value> properties = new TreeMap<String, Value>(object.getProperties());
-//            Iterator<String> iter = properties.keySet().iterator();
-//            int i = 0;
-//            int limit = 10;
-//            while (i < limit && iter.hasNext()) {
-//                if (i == 0) {
-//                    lbl.append("|");
-//                } else {
-//                    lbl.append("\\l");
-//                }
-//                String property = iter.next();
-//                lbl.append(property);
-//                i++;
-//            }
-//            lbl.append("\\l");
-//            if (iter.hasNext()) {
-//                lbl.append("...\\l");
-//            }
-//            ns.append("\t").append("\"").append(name).append("\"").append(" [shape=record label=\"{").append(lbl).append("}\"]").append("\n");
-//
-//            // Build arrows
-//            for (ObjectLabel prototype : object.getInternalPrototype().getObjectLabels()) {
-//                es.append("\t").append("\"").append(name).append("\"").append(" -> ").append("\"").append(prototype).append("\"").append("\n");
-//            }
-//        }
-//
-//        // Put everything together
-//        StringBuilder sb = new StringBuilder();
-//        sb.append("digraph {\n");
-//        sb.append("\tcompound=true\n");
-//        sb.append("\trankdir=\"BT\"\n");
-//        sb.append("\tnode [fontname=\"Arial\"]\n");
-//        sb.append(ns);
-//        sb.append(es);
-//        sb.append("}");
-//        return sb.toString();
-//    }
+    /**
+     * Removes queue objects from the store.
+     */
+    public void removeQueueObjects() {
+        for (ObjectLabel objectLabel : this.queue.keySet())
+            this.removeObject(objectLabel);
+    }
 
     /**
      * Reduces this state.
@@ -2087,6 +2305,25 @@ public class State implements IState<State, Context, CallEdge> {
     }
 
     /**
+     * Callbacks that are registered for execution (along with their arguments)
+     * in the queue should be remain to the store to be executed later by
+     * the event loop.
+     *
+     * Therefore, based on the current queue, we retrieve the object labels
+     * of all registered callbacks both (resolved and rejected).
+     */
+    private Set<ObjectLabel> getLiveCallbacks() {
+        Set<ObjectLabel> objectLabels = newSet();
+        for (Set<QueueObject> queueObjects: this.queue.values()) {
+            for (QueueObject qObj : queueObjects) {
+                objectLabels.addAll(qObj.getCallbackObjectLabels());
+                objectLabels.addAll(qObj.getArgumentObjectLabels());
+            }
+        }
+        return objectLabels;
+    }
+
+    /**
      * Finds live object labels (i.e. those reachable from the execution context, registers, or stacked object labels).
      * Note that the summarized sets may contain dead object labels.
      *
@@ -2102,6 +2339,12 @@ public class State implements IState<State, Context, CallEdge> {
                 live.addAll(v.getObjectLabels());
         live.addAll(stacked_objlabels);
         extras.getAllObjectLabels(live);
+
+        /* Queue objects and their registered callbacks should remain
+           in the store. */
+        //live.addAll(this.queue.keySet());
+        live.addAll(this.getLiveCallbacks());
+
         if (!Options.get().isLazyDisabled())
             for (ObjectLabel objlabel : store.keySet()) {
                 // some object represented by objlabel may originate from the caller (so it must be treated as live),
@@ -2283,20 +2526,6 @@ public class State implements IState<State, Context, CallEdge> {
         writable_registers = true;
     }
 
-//    /**
-//     * Clears the non-live registers.
-//     */
-//    public void clearDeadRegisters(int[] live_regs) {
-//        for (int reg = 0, i = 0; reg < registers.size(); reg++) {
-//            if (i < live_regs.length && live_regs[i] == reg)
-//                i++;
-//            else if (registers.get(reg) != null && reg >= AbstractNode.FIRST_ORDINARY_REG) {
-//                makeWritableRegisters();
-//                registers.set(reg, null);
-//            }
-//        }
-//    }
-
     /**
      * Returns the value of 'this'.
      */
@@ -2321,6 +2550,8 @@ public class State implements IState<State, Context, CallEdge> {
     @Override
     public void localize(State s) {
         if (!Options.get().isLazyDisabled()) {
+            this.scheduledCallbacks = null;
+            this.callbackContext = null;
             if (s == null) {
                 // set everything to unknown
                 store = newMap();
@@ -2364,8 +2595,6 @@ public class State implements IState<State, Context, CallEdge> {
     @Override
     public Context transform(CallEdge edge, Context edge_context,
                              Map<Context, State> callee_entry_states, BasicBlock callee) {
-//        if (log.isDebugEnabled())
-//            log.debug("transform from call " + edge.getState().getBasicBlock().getSourceLocation() + " to " + callee.getSourceLocation());
         return edge_context;
     }
 

@@ -16,6 +16,7 @@
 
 package dk.brics.tajs.monitoring;
 
+import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
@@ -43,6 +44,11 @@ import java.util.Set;
  * Enables easy creation of classes that only needs to implement a few methods.
  */
 public class DefaultAnalysisMonitoring implements IAnalysisMonitoring {
+
+    @Override
+    public void addMessage(AbstractNode n, Message.Status status, Message.Severity severity, String msg) {
+
+    }
 
     @Override
     public void addMessage(AbstractNode n, Message.Severity severity, String msg) {
@@ -197,6 +203,21 @@ public class DefaultAnalysisMonitoring implements IAnalysisMonitoring {
 
     @Override
     public void visitEventHandlerRegistration(AbstractNode node, Context context, Value handler) {
+    }
+
+    @Override
+    public void visitPromiseCall(AbstractNode node, FunctionCalls.CallInfo call) {
+
+    }
+
+    @Override
+    public void visitPromiseExecutor(AbstractNode node, Value executor) {
+
+    }
+
+    @Override
+    public void visitPromiseResolve(AbstractNode node, ObjectLabel promise, Value resolvedValue) {
+
     }
 
     @Override

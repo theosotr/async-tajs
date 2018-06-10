@@ -162,6 +162,11 @@ public class WritePropertyNode extends Node {
     }
 
     @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
+    @Override
     public void check(BasicBlock b) {
         if (base_reg == NO_VALUE)
             throw new AnalysisException("Base register is NO_VALUE:" + toString());

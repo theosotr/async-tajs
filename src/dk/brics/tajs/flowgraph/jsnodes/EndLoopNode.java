@@ -46,6 +46,11 @@ public class EndLoopNode extends Node {
         return false;
     }
 
+    @Override
+    public boolean isEventLoop() {
+        return false;
+    }
+
     /**
      * Returns the associated begin-loop node.
      */
