@@ -129,7 +129,7 @@ public class PathAndURLUtils {
      */
     public static Path getRelativeTo(Path from, Path to) {
         Path toAbs = to.toAbsolutePath();
-        toAbs = transformPath(from.getFileSystem(), toAbs);
+        toAbs = transformPath(from.getFileSystem(), toAbs).toAbsolutePath();
         return from.toAbsolutePath().normalize().relativize(toAbs).normalize();
     }
 
